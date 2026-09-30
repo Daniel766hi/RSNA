@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -118,7 +119,11 @@ def push(user: str, a) -> None:
     if a.dry_run:
         print(f"built {folder} (not pushed)")
         return
-    run(["kaggle", "kernels", "push", "-p", str(folder)])
+    out = run(["kaggle", "kernels", "push", "-p", str(folder)], capture=True)
+    print(out, flush=True)
+    m = re.search(r"Kernel version (\d+)", out)
+    if m:  # code-competition submissions must name the kernel version
+        (BUILD / f"{json.loads((folder / 'kernel-metadata.json').read_text())['title']}.version").write_text(m.group(1))
 
 
 def wait(user: str, slug: str, poll: int = 60) -> str:
@@ -198,8 +203,14 @@ def main() -> None:
     elif a.cmd == "submit":
         check_submission(user, a.slug)
         cmd = ["kaggle", "competitions", "submit", COMP, "-k", f"{user}/{a.slug}", "-f", "submission.csv", "-m", a.message]
-        if a.version:
-            cmd += ["-v", a.version]
+        version = a.version
+        vfile = BUILD / f"{a.slug}.version"
+        if not version and vfile.exists():
+            version = vfile.read_text().strip()
+        if not version:
+            raise SystemExit(f"no known version for {a.slug}; pass -v (see the kernel's page)")
+        print(f"submitting {a.slug} version {version}", flush=True)
+        cmd += ["-v", version]
         run(cmd)
 
 

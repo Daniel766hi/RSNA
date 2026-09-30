@@ -42,6 +42,8 @@ file". To prevent this:
 * `orchestrate.py submit` checks the file listing and log of the kernel's latest version first. It refuses to submit
   when the file is missing or is the all-0.5 fallback.
 * Submit only the `kneemri-submit` kernel, never a training kernel.
+* Code-competition submissions must name the kernel version. `push` records it in
+  `kaggle/build/<slug>.version` and `submit` uses it; pass `-v N` to override.
 
 The whole chain was simulated end-to-end outside Kaggle, on synthetic DICOM, with
 `KNEEMRI_KAGGLE_ROOT` pointing at a fake `/kaggle`.
