@@ -30,6 +30,9 @@ for p in find_files("*.csv"):
     df = df.apply(pd.to_numeric, errors="coerce").clip(0, 1)
     if df.index.isin(train[ID_COL]).mean() < 0.5 or len(df) < 0.8 * len(train):
         continue
+    if df.isna().to_numpy().mean() > 0.2:  # mostly-empty tables cannot serve as targets
+        print(f"skip {p}: {df.isna().to_numpy().mean():.0%} empty cells", flush=True)
+        continue
     cands[str(p)] = df
 
 if CONFIG.get("llm_model"):
@@ -44,7 +47,7 @@ rows = []
 for name, df in cands.items():
     leak = detect_gold_leak(df, gold)
     agree = gold_agreement(df, gold) if not leak["leak"] else None
-    rows.append({"source": name, "n": len(df), "leak": leak["leak"], "exact_match": round(leak["exact_match"], 3),
+    rows.append({"source": name, "n": len(df), "nan_frac": round(float(df.isna().to_numpy().mean()), 3), "leak": leak["leak"], "exact_match": round(leak["exact_match"], 3),
                  "gold_macro": None if agree is None else round(float(agree.mean()), 4)})
 report = pd.DataFrame(rows).sort_values("gold_macro", ascending=False, na_position="last")
 print(report.to_string(index=False), flush=True)

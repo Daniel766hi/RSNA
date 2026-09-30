@@ -57,6 +57,8 @@ def gold_agreement(teacher: pd.DataFrame, gold: pd.DataFrame) -> pd.Series:
     for t in TARGETS:
         y = gold.loc[common, t].values
         p = teacher.loc[common, t].values
+        ok = np.isfinite(p)  # teachers may leave some cells empty
+        y, p = y[ok], p[ok]
         out[t] = roc_auc_score(y, p) if 0 < y.sum() < len(y) else np.nan
     return pd.Series(out, name="gold_auc")
 
@@ -71,8 +73,12 @@ def detect_gold_leak(teacher: pd.DataFrame, gold: pd.DataFrame, tol: float = 0.9
     common = gold.index.intersection(teacher.index)
     if len(common) == 0:
         return {"n_common": 0, "exact_match": np.nan, "leak": False}
-    pred = (teacher.loc[common, TARGETS].values >= 0.5).astype(int)
-    exact = float((pred == gold.loc[common, TARGETS].values.astype(int)).mean())
+    vals = teacher.loc[common, TARGETS].values
+    ok = np.isfinite(vals)
+    if not ok.any():
+        return {"n_common": int(len(common)), "exact_match": np.nan, "leak": False}
+    pred = (vals >= 0.5).astype(int)
+    exact = float((pred == gold.loc[common, TARGETS].values.astype(int))[ok].mean())
     return {"n_common": int(len(common)), "exact_match": exact, "leak": exact >= tol}
 
 
