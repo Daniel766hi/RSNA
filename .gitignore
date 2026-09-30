@@ -11,3 +11,4 @@ outputs/
 *.pth
 submission.csv
 .env
+kaggle/build/

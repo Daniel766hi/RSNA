@@ -3,7 +3,40 @@
 Run the stages in order. Each stage is a separate Kaggle notebook. **Training notebooks may use
 the internet** (pip, timm weights); only the **submission notebook must run offline**.
 
-## 0. One-time setup
+## Automated route: `kaggle/orchestrate.py`
+
+Every stage below also exists as a ready-made private script kernel (`kaggle/stages/`). The
+orchestrator uploads the code, pushes the kernels with the right inputs chained, waits for
+them, and submits. It needs `KAGGLE_API_TOKEN` in the environment (a token from
+kaggle.com → Settings → API). The token must belong to an account that has **accepted the
+competition rules** and is **phone-verified** (both are required for GPU and submissions).
+
+```bash
+python kaggle/orchestrate.py whoami
+python kaggle/orchestrate.py upload-code -m "v1"
+python kaggle/orchestrate.py search-labels                       # pick clean public label tables
+python kaggle/orchestrate.py push cache            && python kaggle/orchestrate.py wait kneemri-cache
+python kaggle/orchestrate.py push labels --datasets <owner>/<table> ...
+python kaggle/orchestrate.py wait kneemri-labels                 # prints the leak / gold-agreement report
+python kaggle/orchestrate.py push train            && python kaggle/orchestrate.py wait kneemri-train-r0
+python kaggle/orchestrate.py push submit --train kneemri-train-r0 && python kaggle/orchestrate.py wait kneemri-submit
+python kaggle/orchestrate.py submit kneemri-submit -m "r0 convnext-t 320"
+python kaggle/orchestrate.py push train --slug kneemri-train-r1 --refine-from kneemri-train-r0
+python kaggle/orchestrate.py push submit --train kneemri-train-r0 kneemri-train-r1   # then wait + submit
+```
+
+What each stage does:
+
+* **Labels:** every attached table is leak-checked against the gold rows. Leaky tables are
+  dropped, and the best clean table by gold agreement is used.
+* **Train:** the stage splits folds across both T4s.
+* **Submit:** the stage runs offline and installs the DICOM codec wheels that the cache stage
+  downloaded.
+
+The whole chain was simulated end-to-end outside Kaggle, on synthetic DICOM, with
+`KNEEMRI_KAGGLE_ROOT` pointing at a fake `/kaggle`.
+
+## 0. One-time setup (manual route)
 
 1. **Accept the competition rules before 2026-10-15** (entry and team-merger deadline).
 2. Upload this repository as a private Kaggle dataset, e.g. `kneemri-code`. In each notebook:
