@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kneemri"
+version = "0.1.0"
+description = "Weakly supervised 2.5-D MIL for the RSNA Knee Abnormality Detection challenge"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas",
+    "pydicom>=2.4",
+    "scikit-learn",
+    "torch>=2.1",
+    "timm>=0.9",
+]
+
+[project.optional-dependencies]
+dicom-codecs = ["pylibjpeg", "pylibjpeg-libjpeg", "pylibjpeg-openjpeg"]
+llm = ["transformers", "vllm"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
