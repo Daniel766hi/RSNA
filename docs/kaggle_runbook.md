@@ -39,7 +39,7 @@ file". To prevent this:
 
 * The submit stage always leaves a `submission.csv`. If `predict.py` fails, it falls back to
   the 0.5 sample file.
-* `orchestrate.py submit` downloads the kernel's latest output first. It refuses to submit
+* `orchestrate.py submit` checks the file listing and log of the kernel's latest version first. It refuses to submit
   when the file is missing or is the all-0.5 fallback.
 * Submit only the `kneemri-submit` kernel, never a training kernel.
 

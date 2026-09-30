@@ -134,20 +134,19 @@ def wait(user: str, slug: str, poll: int = 60) -> str:
 
 def check_submission(user: str, slug: str) -> None:
     """Refuse to submit a kernel version without a real submission.csv (Kaggle rejects the first
-    case, and an all-0.5 fallback file would waste a daily submission)."""
-    import pandas as pd  # noqa: PLC0415
+    case, and an all-0.5 fallback file would waste a daily submission).
 
-    dest = BUILD / "outputs" / slug
-    shutil.rmtree(dest, ignore_errors=True)
-    run(["kaggle", "kernels", "output", f"{user}/{slug}", "-p", str(dest)])
-    sub = dest / "submission.csv"
-    if not sub.exists():
+    Uses the file listing and the log, not a download: output downloads come from
+    kaggleusercontent.com, which a restricted network may block.
+    """
+    ref = f"{user}/{slug}"
+    files = run(["kaggle", "kernels", "files", ref], capture=True)
+    if not any(line.split()[:1] == ["submission.csv"] for line in files.splitlines()):
         raise SystemExit(f"{slug}: latest version has no submission.csv; not submitting")
-    df = pd.read_csv(sub)
-    vals = df.drop(columns=df.columns[0])
-    if (vals == 0.5).all().all():
-        raise SystemExit(f"{slug}: submission.csv is the all-0.5 fallback; check the kernel log")
-    print(f"{slug}: submission.csv ok ({len(df)} rows)", flush=True)
+    log = "".join(e.get("data", "") for e in json.loads(run(["kaggle", "kernels", "logs", ref], capture=True)))
+    if "writing the 0.5 sample instead" in log or "[predict] wrote" not in log:
+        raise SystemExit(f"{slug}: submission.csv is the 0.5 fallback or predict.py did not finish; check the log")
+    print(next(line for line in log.splitlines() if "[predict] wrote" in line), flush=True)
 
 
 def main() -> None:
