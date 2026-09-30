@@ -159,7 +159,8 @@ def train_fold(
     va_ds = KneeStudyDataset([paths[i] for i in va], y[va], w[va], train=False, **ds_kw)
     tr_dl = DataLoader(tr_ds, cfg.batch_size, shuffle=True, num_workers=cfg.num_workers, collate_fn=collate,
                        drop_last=True, persistent_workers=cfg.num_workers > 0)
-    va_dl = DataLoader(va_ds, cfg.batch_size, shuffle=False, num_workers=cfg.num_workers, collate_fn=collate)
+    # eval windows are not capped by max_windows, so keep eval batches small
+    va_dl = DataLoader(va_ds, max(1, cfg.batch_size // 2), shuffle=False, num_workers=cfg.num_workers, collate_fn=collate)
 
     model = KneeMIL(cfg.model).to(device)
     opt = torch.optim.AdamW(param_groups(model, cfg.lr_backbone, cfg.lr_head, cfg.weight_decay))

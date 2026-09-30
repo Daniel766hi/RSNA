@@ -34,7 +34,7 @@ COMP = "rsna-knee-abnormality-detection"
 # Volume settings shared by the cache and submit stages: they must match (the model was trained
 # on this recipe). 320 px keeps the cache under Kaggle's 20 GB output limit.
 VOLUME = {"img": 320, "crop_mm": 140.0, "recenter": False}
-TRAIN = {"backbone": "convnext_tiny.fb_in22k_ft_in1k_384", "epochs": 10, "batch_size": 8, "n_folds": 5,
+TRAIN = {"backbone": "convnext_tiny.fb_in22k_ft_in1k_384", "epochs": 10, "batch_size": 4, "grad_accum": 2, "n_folds": 5,
          "max_windows": 16, "grad_ckpt": False}
 
 

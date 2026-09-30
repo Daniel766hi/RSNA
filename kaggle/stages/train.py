@@ -20,7 +20,7 @@ import torch  # noqa: E402
 
 n_gpu = max(1, torch.cuda.device_count())
 common = (f"python {CODE}/scripts/train_cv.py --data {DATA} --cache {CACHE} --labels {labels} --out {work}/run "
-          f"--backbone {CONFIG['backbone']} --epochs {CONFIG['epochs']} --batch-size {CONFIG['batch_size']} "
+          f"--backbone {CONFIG['backbone']} --epochs {CONFIG['epochs']} --batch-size {CONFIG['batch_size']} --grad-accum {CONFIG.get('grad_accum', 1)} "
           f"--n-folds {n_folds} --workers {max(1, (os.cpu_count() or 4) // n_gpu)} --max-windows {CONFIG['max_windows']}"
           + (" --grad-ckpt" if CONFIG.get("grad_ckpt") else "")
           + ("" if CONFIG.get("pretrained", True) else " --no-pretrained")
@@ -30,7 +30,7 @@ for g in range(n_gpu):
     folds = [k for k in range(n_folds) if k % n_gpu == g]
     if not folds:
         continue
-    cmd = f"CUDA_VISIBLE_DEVICES={g} {common} --folds {' '.join(map(str, folds))} > {work}/train_gpu{g}.log 2>&1"
+    cmd = f"PYTORCH_ALLOC_CONF=expandable_segments:True CUDA_VISIBLE_DEVICES={g} {common} --folds {' '.join(map(str, folds))} > {work}/train_gpu{g}.log 2>&1"
     print("$", cmd, flush=True)
     procs.append(subprocess.Popen(cmd, shell=True))
 codes = [p.wait() for p in procs]
