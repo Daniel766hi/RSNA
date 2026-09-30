@@ -33,6 +33,16 @@ What each stage does:
 * **Submit:** the stage runs offline and installs the DICOM codec wheels that the cache stage
   downloaded.
 
+**Kaggle only accepts a notebook version that writes `/kaggle/working/submission.csv`.**
+Otherwise it rejects the submission with "the selected Notebook Version does not output this
+file". To prevent this:
+
+* The submit stage always leaves a `submission.csv`. If `predict.py` fails, it falls back to
+  the 0.5 sample file.
+* `orchestrate.py submit` downloads the kernel's latest output first. It refuses to submit
+  when the file is missing or is the all-0.5 fallback.
+* Submit only the `kneemri-submit` kernel, never a training kernel.
+
 The whole chain was simulated end-to-end outside Kaggle, on synthetic DICOM, with
 `KNEEMRI_KAGGLE_ROOT` pointing at a fake `/kaggle`.
 

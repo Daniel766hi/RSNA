@@ -132,6 +132,24 @@ def wait(user: str, slug: str, poll: int = 60) -> str:
         time.sleep(poll)
 
 
+def check_submission(user: str, slug: str) -> None:
+    """Refuse to submit a kernel version without a real submission.csv (Kaggle rejects the first
+    case, and an all-0.5 fallback file would waste a daily submission)."""
+    import pandas as pd  # noqa: PLC0415
+
+    dest = BUILD / "outputs" / slug
+    shutil.rmtree(dest, ignore_errors=True)
+    run(["kaggle", "kernels", "output", f"{user}/{slug}", "-p", str(dest)])
+    sub = dest / "submission.csv"
+    if not sub.exists():
+        raise SystemExit(f"{slug}: latest version has no submission.csv; not submitting")
+    df = pd.read_csv(sub)
+    vals = df.drop(columns=df.columns[0])
+    if (vals == 0.5).all().all():
+        raise SystemExit(f"{slug}: submission.csv is the all-0.5 fallback; check the kernel log")
+    print(f"{slug}: submission.csv ok ({len(df)} rows)", flush=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -179,6 +197,7 @@ def main() -> None:
         dest = BUILD / "outputs" / a.slug
         run(["kaggle", "kernels", "output", f"{user}/{a.slug}", "-p", str(dest)])
     elif a.cmd == "submit":
+        check_submission(user, a.slug)
         cmd = ["kaggle", "competitions", "submit", COMP, "-k", f"{user}/{a.slug}", "-f", "submission.csv", "-m", a.message]
         if a.version:
             cmd += ["-v", a.version]

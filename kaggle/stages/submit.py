@@ -12,4 +12,10 @@ print("checkpoint groups:", groups, flush=True)
 args = " ".join(f"--group '{g}/fold*.pt'" for g in groups)
 sh(f"python {CODE}/scripts/predict.py --data {DATA} {args} --img {CONFIG['img']} --crop-mm {CONFIG['crop_mm']} "
    + (" --recenter" if CONFIG.get("recenter") else "")
-   + f" --budget-hours {CONFIG.get('budget_hours', 8.0)} --workers {os.cpu_count() or 4} --out {WORK}/submission.csv")
+   + f" --budget-hours {CONFIG.get('budget_hours', 8.0)} --workers {os.cpu_count() or 4} --out {WORK}/submission.csv",
+   check=False)
+# Kaggle rejects a submission whose notebook version has no submission.csv, so always leave one.
+if not (WORK / "submission.csv").exists():
+    import shutil
+    print("WARNING: predict.py wrote no submission.csv; writing the 0.5 sample instead", flush=True)
+    shutil.copy(DATA / "sample_submission.csv", WORK / "submission.csv")
