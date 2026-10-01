@@ -40,7 +40,7 @@ try:
                + sum((["--group", f"{g}/fold*.pt"] for g in _km_groups), [])
                + ["--img", str(_KM_CFG["img"]), "--crop-mm", str(_KM_CFG["crop_mm"]),
                   "--budget-hours", f"{_km_budget:.3f}", "--workers", str(_km_os.cpu_count() or 4),
-                  "--out", str(_km_out)])
+                  "--out", str(_km_out), "--covered-out", str(_km_out.with_name("kneemri_covered.csv"))])
     _km_env = dict(_km_os.environ, PYTHONPATH=str(_km_code / "src"))
     _km_r = _km_sp.run(_km_cmd, env=_km_env)
     if _km_r.returncode != 0 or not _km_out.exists():
@@ -51,7 +51,9 @@ try:
     _km_cols = [c for c in _km_pub.columns if c != "StudyInstanceUID"]
     _km_ours = _km_pub[["StudyInstanceUID"]].merge(_km_ours, on="StudyInstanceUID", how="left")
     # studies our run skipped (budget / decode failure) keep the public prediction only
-    _km_have = ~(_km_ours[_km_cols].isna().any(axis=1) | (_km_ours[_km_cols] == 0.5).all(axis=1))
+    _km_cov = set(_km_pd.read_csv(_km_out.with_name("kneemri_covered.csv"), dtype={"StudyInstanceUID": str})
+                  ["StudyInstanceUID"])
+    _km_have = _km_pub["StudyInstanceUID"].isin(_km_cov) & ~_km_ours[_km_cols].isna().any(axis=1)
     _km_w = _KM_CFG["weight"] * _km_have.to_numpy(float)[:, None]
     _km_blend = _km_pub.copy()
     _km_blend[_km_cols] = ((1 - _km_w) * _km_pub[_km_cols].rank(pct=True).to_numpy()

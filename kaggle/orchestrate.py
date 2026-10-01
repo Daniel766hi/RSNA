@@ -97,6 +97,39 @@ def build_kernel(user: str, stage: str, slug: str, config: dict, *, gpu: bool, i
     return out
 
 
+PUBLIC_BASE = "yamadan96/rsna-knee-d4-public0946"  # public 0.943 pipeline (lever L6 partner)
+
+
+def build_blend(user: str, slug: str, base: str, train: list[str], weight: float) -> Path:
+    """Fork a public submission notebook and append a cell that rank-blends our runs into its
+    submission.csv at ``weight``. The public pipeline's own output is kept if our part fails."""
+    out = BUILD / slug
+    shutil.rmtree(out, ignore_errors=True)
+    pulled = BUILD / "public" / base.replace("/", "__")
+    shutil.rmtree(pulled, ignore_errors=True)
+    run(["kaggle", "kernels", "pull", base, "-p", str(pulled), "-m"])
+    src_meta = json.loads((pulled / "kernel-metadata.json").read_text())
+    nb = json.loads((pulled / src_meta["code_file"]).read_text())
+    cfg = {**VOLUME, "weight": weight, "max_hours": 2.5, "total_hours": 8.6}
+    cell = (STAGES / "blend_cell.py").read_text().replace("__CONFIG__", json.dumps(cfg))
+    nb["cells"].append({"cell_type": "code", "metadata": {}, "execution_count": None, "outputs": [],
+                        "source": cell})
+    out.mkdir(parents=True)
+    (out / f"{slug}.ipynb").write_text(json.dumps(nb))
+    keep = ("dataset_sources", "kernel_sources", "competition_sources", "model_sources", "docker_image",
+            "machine_shape", "enable_gpu")
+    meta = {k: src_meta[k] for k in keep if k in src_meta}
+    meta["dataset_sources"] = [d for d in meta.get("dataset_sources", []) if d] + [f"{user}/kneemri-code"]
+    meta["kernel_sources"] = meta.get("kernel_sources", []) + [f"{user}/kneemri-cache"] + [
+        f"{user}/{k}" if "/" not in k else k for k in train]
+    meta.update({"id": f"{user}/{slug}", "title": slug, "code_file": f"{slug}.ipynb", "language": "python",
+                 "kernel_type": "notebook", "is_private": True, "enable_internet": False, "enable_tpu": False})
+    if meta.get("docker_image"):
+        meta["docker_image_pinning_type"] = "original"
+    (out / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
+    return out
+
+
 def push(user: str, a) -> None:
     if a.stage == "cache":
         folder = build_kernel(user, "cache", a.slug or "kneemri-cache", VOLUME, gpu=False, internet=True,
@@ -114,6 +147,8 @@ def push(user: str, a) -> None:
         cfg = {**VOLUME, "budget_hours": a.budget_hours}
         folder = build_kernel(user, "submit", a.slug or "kneemri-submit", cfg, gpu=True, internet=False,
                               datasets=[], kernels=["kneemri-cache", *a.train])
+    elif a.stage == "blend":
+        folder = build_blend(user, a.slug or "kneemri-blend", a.base, a.train, a.weight)
     else:
         raise SystemExit(f"unknown stage {a.stage}")
     if a.dry_run:
@@ -162,7 +197,7 @@ def main() -> None:
     u.add_argument("-m", "--message", default="update")
     sub.add_parser("search-labels")
     p = sub.add_parser("push")
-    p.add_argument("stage", choices=["cache", "labels", "train", "submit"])
+    p.add_argument("stage", choices=["cache", "labels", "train", "submit", "blend"])
     p.add_argument("--slug")
     p.add_argument("--datasets", nargs="*", default=[])
     p.add_argument("--models", nargs="*", default=[])
@@ -172,6 +207,8 @@ def main() -> None:
     p.add_argument("--config", default=None, help='JSON overrides for TRAIN, e.g. \'{"epochs": 8}\'')
     p.add_argument("--train", nargs="*", default=["kneemri-train-r0"])
     p.add_argument("--budget-hours", type=float, default=8.0)
+    p.add_argument("--base", default=PUBLIC_BASE, help="public notebook to fork (blend stage)")
+    p.add_argument("--weight", type=float, default=0.1, help="rank weight of our runs (blend stage)")
     p.add_argument("--dry-run", action="store_true")
     w = sub.add_parser("wait")
     w.add_argument("slug")

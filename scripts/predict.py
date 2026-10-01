@@ -40,6 +40,7 @@ def main() -> None:
     ap.add_argument("--budget-hours", type=float, default=8.0)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--out", default="submission.csv")
+    ap.add_argument("--covered-out", default=None, help="also write the ids every group actually predicted")
     a = ap.parse_args()
 
     t0 = time.time()
@@ -61,6 +62,12 @@ def main() -> None:
         print(f"[predict] group {gi}: {len(ckpts)} ckpts, budget {budget / 60:.0f} min", flush=True)
         frames.append(predict_dicom(ids, series, data / "test_series", ckpts, vol_cfg, a.img_size,
                                     num_workers=a.workers, time_budget_s=budget))
+    if a.covered_out:
+        # predict_dicom leaves skipped studies (time budget, decode failure) at exactly 0.5
+        covered = pd.Series(True, index=ids)
+        for f in frames:
+            covered &= ~(f.set_index(ID_COL)[TARGETS] == 0.5).all(axis=1).reindex(ids, fill_value=True)
+        pd.DataFrame({ID_COL: [i for i in ids if covered[i]] if frames else []}).to_csv(a.covered_out, index=False)
     weights = [1.0] * len(frames)
     if a.blend_with:
         ext = read_table(a.blend_with)
