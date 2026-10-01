@@ -212,9 +212,15 @@ def run_cv(
 ) -> pd.DataFrame:
     """Train every requested fold; write ``oof.csv`` and ``metrics.json`` into ``cfg.out_dir``."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    cache_dir = Path(cache_dir)
-    train = train[train[ID_COL].map(lambda s: (cache_dir / f"{s}.npz").exists())].reset_index(drop=True)
-    paths = [cache_dir / f"{s}.npz" for s in train[ID_COL]]
+    # a cache may be split over several directories (comma-separated), e.g. Kaggle output shards
+    cache_dirs = [Path(c) for c in str(cache_dir).split(",") if c]
+
+    def _path(sid: str) -> Path | None:
+        return next((d / f"{sid}.npz" for d in cache_dirs if (d / f"{sid}.npz").exists()), None)
+
+    found = train[ID_COL].map(_path)
+    train = train[found.notna()].reset_index(drop=True)
+    paths = [p for p in found if p is not None]
     y, w, gold = build_targets(train, labels, weights, cfg.gold_weight)
     folds = make_folds(train, cfg.n_folds, cfg.seed).reindex(train[ID_COL]).values
     oof = np.full((len(train), len(TARGETS)), np.nan, np.float32)

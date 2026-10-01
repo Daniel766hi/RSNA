@@ -1,10 +1,12 @@
 # Stage 3 (2xT4, internet on for timm weights): cross-validated training on the cache.
 # Folds are split across the two GPUs as two parallel processes. With CONFIG["refine_from"]
 # set, labels are first refined with that run's out-of-fold predictions (lever L1).
-from kneemri.kaggle_env import find_competition_dir, find_files, find_npz_cache
+from kneemri.kaggle_env import find_competition_dir, find_files, find_npz_cache, find_npz_caches
 
 DATA = find_competition_dir()
-CACHE = find_npz_cache()
+CACHE_DIRS = find_npz_caches(CONFIG["caches"]) if CONFIG.get("caches") else [find_npz_cache()]
+CACHE = CACHE_DIRS[0]
+print("cache dirs:", [str(d) for d in CACHE_DIRS], flush=True)
 labels = [p for p in find_files("labels.csv") if str(WORK) not in str(p)][0]
 work = WORK
 if CONFIG.get("refine_from"):
@@ -19,7 +21,7 @@ n_folds = CONFIG["n_folds"]
 import torch  # noqa: E402
 
 n_gpu = max(1, torch.cuda.device_count())
-common = (f"python {CODE}/scripts/train_cv.py --data {DATA} --cache {CACHE} --labels {labels} --out {work}/run "
+common = (f"python {CODE}/scripts/train_cv.py --data {DATA} --cache {",".join(map(str, CACHE_DIRS))} --labels {labels} --out {work}/run "
           f"--backbone {CONFIG['backbone']} --epochs {CONFIG['epochs']} --batch-size {CONFIG['batch_size']} --grad-accum {CONFIG.get('grad_accum', 1)} "
           f"--n-folds {n_folds} --workers {max(1, (os.cpu_count() or 4) // n_gpu)} --max-windows {CONFIG['max_windows']}"
           + (" --grad-ckpt" if CONFIG.get("grad_ckpt") else "")

@@ -38,3 +38,12 @@ def find_npz_cache(root: Path = INPUT, min_files: int = 100) -> Path:
     if best is None or n_best < min_files:
         raise FileNotFoundError(f"no .npz cache with >= {min_files} studies under {root}")
     return best
+
+
+def find_npz_caches(names: list[str], root: Path = INPUT, min_files: int = 100) -> list[Path]:
+    """Every ``.npz`` cache directory whose path contains one of ``names`` (cache kernel slugs)."""
+    dirs = sorted({p.parent for p in root.rglob("*.npz") if any(n in str(p) for n in names)})
+    dirs = [d for d in dirs if sum(1 for _ in d.glob("*.npz")) >= min_files]
+    if not dirs:
+        raise FileNotFoundError(f"no .npz cache for {names} under {root}")
+    return dirs

@@ -44,6 +44,8 @@ def main() -> None:
     ap.add_argument("--no-mirror", action="store_true")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--shard", default=None, help="i/n: cache only every n-th study starting at i "
+                    "(split a cache that exceeds one Kaggle output's 20 GB)")
     a = ap.parse_args()
 
     data = Path(a.data)
@@ -53,6 +55,9 @@ def main() -> None:
     cfg = VolumeConfig(img=a.img, crop_mm=a.crop_mm, recenter=a.recenter, mirror_right=not a.no_mirror)
     Path(a.out).mkdir(parents=True, exist_ok=True)
     jobs = [(sid, root / sid, g, cfg, a.out) for sid, g in series.groupby(ID_COL)][: a.limit]
+    if a.shard:
+        i, n = map(int, a.shard.split("/"))
+        jobs = jobs[i::n]
     with ProcessPoolExecutor(a.workers) as ex:
         futs = [ex.submit(_one, j) for j in jobs]
         for i, f in enumerate(as_completed(futs)):

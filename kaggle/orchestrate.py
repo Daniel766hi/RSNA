@@ -132,7 +132,8 @@ def build_blend(user: str, slug: str, base: str, train: list[str], weight: float
 
 def push(user: str, a) -> None:
     if a.stage == "cache":
-        vol = {**VOLUME, **({"img": a.img} if a.img else {}), **({"crop_mm": a.crop_mm} if a.crop_mm else {})}
+        vol = {**VOLUME, **({"img": a.img} if a.img else {}), **({"crop_mm": a.crop_mm} if a.crop_mm else {}),
+               **({"shard": a.shard} if a.shard else {})}
         folder = build_kernel(user, "cache", a.slug or "kneemri-cache", vol, gpu=False, internet=True,
                               datasets=[], kernels=[])
     elif a.stage == "labels":
@@ -140,8 +141,9 @@ def push(user: str, a) -> None:
         folder = build_kernel(user, "labels", a.slug or "kneemri-labels", cfg, gpu=bool(a.llm_model),
                               internet=True, datasets=a.datasets, kernels=[], models=a.models)
     elif a.stage == "train":
-        cfg = {**TRAIN, **json.loads(a.config or "{}"), "refine_from": a.refine_from}
-        kernels = [a.cache, "kneemri-labels"] + ([a.refine_from] if a.refine_from else [])
+        cfg = {**TRAIN, **json.loads(a.config or "{}"), "refine_from": a.refine_from,
+               "caches": a.cache if a.cache != ["kneemri-cache"] else None}
+        kernels = [*a.cache, "kneemri-labels"] + ([a.refine_from] if a.refine_from else [])
         folder = build_kernel(user, "train", a.slug or "kneemri-train-r0", cfg, gpu=True, internet=True,
                               datasets=[], kernels=kernels)
     elif a.stage == "submit":
@@ -212,7 +214,9 @@ def main() -> None:
     p.add_argument("--weight", type=float, default=0.1, help="rank weight of our runs (blend stage)")
     p.add_argument("--img", type=int, default=None, help="cache stage: slice size (default VOLUME)")
     p.add_argument("--crop-mm", type=float, default=None, help="cache stage: field of view")
-    p.add_argument("--cache", default="kneemri-cache", help="train stage: cache kernel to train on")
+    p.add_argument("--cache", nargs="+", default=["kneemri-cache"],
+                   help="train stage: cache kernel(s) to train on (several = shards of one cache)")
+    p.add_argument("--shard", default=None, help="cache stage: i/n, cache every n-th study from i")
     p.add_argument("--dry-run", action="store_true")
     w = sub.add_parser("wait")
     w.add_argument("slug")
