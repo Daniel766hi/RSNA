@@ -78,12 +78,27 @@ python scripts/train_cv.py --data $DATA --cache cache/train_384 --labels labels/
 python scripts/predict.py --data $DATA --group "outputs/r1/fold*.pt" --out submission.csv
 ```
 
-## Status
+## Status and results
 
-* The research, the pipeline and its tests are complete. The pipeline passes end-to-end on
-  synthetic DICOM studies.
-* **It has not been run on the competition data yet.** That needs Kaggle GPU sessions (see
-  the runbook). The expected gains in the research review are estimates to be confirmed by
-  the pre-registered protocol, not measured results.
-* Competition data, caches and checkpoints are never committed (Kaggle rules; see
-  `.gitignore`).
+The pipeline now runs on the competition data on Kaggle (`kaggle/orchestrate.py`).
+
+* **Teacher labels.** 5 public tables copied the gold labels and were dropped. The best clean
+  table is `riadmohamed42/jev-knee-labels` `HYBRID_labels_scores.csv`, with 0.904 macro
+  agreement with gold.
+* **Cache.** All 4,407 training studies were decoded at 320 px in 77 min. A 352 px cache is
+  being built.
+
+| Run | Setup | Gold-58 macro (folds 0/2/4, 1/3) | Public LB |
+|---|---|---|---:|
+| r0 | ConvNeXt-T, 320 px, 5 folds × 10 epochs, teacher labels | 0.864 / 0.840 | 0.883 |
+| r1 | as r0, labels refined with r0 OOF (L1) | 0.865 / 0.861 | — |
+| r0+r1 | rank mean | — | **0.888** |
+| r2 | ConvNeXt-S, 4 folds, labels refined with r0 OOF | running | — |
+| r3 | ConvNeXt-T at 352 px, labels refined with r1 OOF | queued | — |
+
+Gold-58 has only 35 and 23 studies per half, so per-target values are noisy.
+
+**For reference:** the best public notebook scores 0.943 (`yamadan96/rsna-knee-d4-public0946`).
+`push blend` forks it and rank-blends our runs at 10%, which is how its parent reached 0.946.
+
+Competition data, caches and checkpoints are never committed (Kaggle rules; see `.gitignore`).
