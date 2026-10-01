@@ -92,9 +92,10 @@ The pipeline now runs on the competition data on Kaggle (`kaggle/orchestrate.py`
 |---|---|---|---:|
 | r0 | ConvNeXt-T, 320 px, 5 folds × 10 epochs, teacher labels | 0.864 / 0.840 | 0.883 |
 | r1 | as r0, labels refined with r0 OOF (L1) | 0.865 / 0.861 | — |
-| r0+r1 | rank mean | — | **0.888** |
-| r2 | ConvNeXt-S, 4 folds, labels refined with r0 OOF | running | — |
-| r3 | ConvNeXt-T at 352 px, labels refined with r1 OOF | queued | — |
+| r0+r1 | rank mean | — | 0.888 |
+| r2 | ConvNeXt-S, 4 folds, labels refined with r0 OOF | 0.857 / 0.886 (29 + 29) | — |
+| r0+r1+r2 | rank mean (gold-58 pooled 0.875); LightGBM stacker rejected by its rule (0.867) | — | **0.893** |
+| r3 | ConvNeXt-T at 352 px (sharded cache), labels refined with r1 OOF | running | — |
 
 Gold-58 has only 35 and 23 studies per half, so per-target values are noisy.
 
