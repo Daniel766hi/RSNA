@@ -19,7 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 dicom-codecs = ["pylibjpeg", "pylibjpeg-libjpeg", "pylibjpeg-openjpeg"]
 llm = ["transformers", "vllm"]
-dev = ["pytest"]
+dev = ["pytest", "lightgbm"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -41,6 +41,7 @@ def main() -> None:
     ap.add_argument("--budget-hours", type=float, default=8.0)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--out", default="submission.csv")
+    ap.add_argument("--raw-dir", default=None, help="also write each group's raw predictions (for stacking)")
     ap.add_argument("--covered-out", default=None, help="also write the ids every group actually predicted")
     a = ap.parse_args()
 
@@ -68,6 +69,10 @@ def main() -> None:
         print(f"[predict] group {gi}: {len(ckpts)} ckpts, budget {budget / 60:.0f} min", flush=True)
         frames.append(predict_dicom(ids, series, data / "test_series", ckpts, g_cfg, a.img_size,
                                     num_workers=a.workers, time_budget_s=budget))
+    if a.raw_dir:
+        Path(a.raw_dir).mkdir(parents=True, exist_ok=True)
+        for gi, f in enumerate(frames):
+            f.to_csv(Path(a.raw_dir) / f"raw_g{gi}.csv", index=False)
     if a.covered_out:
         # predict_dicom leaves skipped studies (time budget, decode failure) at exactly 0.5
         covered = pd.Series(True, index=ids)

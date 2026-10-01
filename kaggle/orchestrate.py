@@ -147,9 +147,9 @@ def push(user: str, a) -> None:
         folder = build_kernel(user, "train", a.slug or "kneemri-train-r0", cfg, gpu=True, internet=True,
                               datasets=[], kernels=kernels)
     elif a.stage == "submit":
-        cfg = {**VOLUME, "budget_hours": a.budget_hours}
+        cfg = {**VOLUME, "budget_hours": a.budget_hours, "stack": a.stack}
         folder = build_kernel(user, "submit", a.slug or "kneemri-submit", cfg, gpu=True, internet=False,
-                              datasets=[], kernels=["kneemri-cache", *a.train])
+                              datasets=[], kernels=["kneemri-cache", *a.train] + (["kneemri-labels"] if a.stack else []))
     elif a.stage == "blend":
         folder = build_blend(user, a.slug or "kneemri-blend", a.base, a.train, a.weight)
     else:
@@ -210,6 +210,7 @@ def main() -> None:
     p.add_argument("--config", default=None, help='JSON overrides for TRAIN, e.g. \'{"epochs": 8}\'')
     p.add_argument("--train", nargs="*", default=["kneemri-train-r0"])
     p.add_argument("--budget-hours", type=float, default=8.0)
+    p.add_argument("--stack", action="store_true", help="submit stage: try the LightGBM stacker (rule-gated)")
     p.add_argument("--base", default=PUBLIC_BASE, help="public notebook to fork (blend stage)")
     p.add_argument("--weight", type=float, default=0.1, help="rank weight of our runs (blend stage)")
     p.add_argument("--img", type=int, default=None, help="cache stage: slice size (default VOLUME)")
