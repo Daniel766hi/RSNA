@@ -132,7 +132,8 @@ def build_blend(user: str, slug: str, base: str, train: list[str], weight: float
 
 def push(user: str, a) -> None:
     if a.stage == "cache":
-        folder = build_kernel(user, "cache", a.slug or "kneemri-cache", VOLUME, gpu=False, internet=True,
+        vol = {**VOLUME, **({"img": a.img} if a.img else {}), **({"crop_mm": a.crop_mm} if a.crop_mm else {})}
+        folder = build_kernel(user, "cache", a.slug or "kneemri-cache", vol, gpu=False, internet=True,
                               datasets=[], kernels=[])
     elif a.stage == "labels":
         cfg = {"n_teachers": a.n_teachers, "llm_model": a.llm_model}
@@ -140,7 +141,7 @@ def push(user: str, a) -> None:
                               internet=True, datasets=a.datasets, kernels=[], models=a.models)
     elif a.stage == "train":
         cfg = {**TRAIN, **json.loads(a.config or "{}"), "refine_from": a.refine_from}
-        kernels = ["kneemri-cache", "kneemri-labels"] + ([a.refine_from] if a.refine_from else [])
+        kernels = [a.cache, "kneemri-labels"] + ([a.refine_from] if a.refine_from else [])
         folder = build_kernel(user, "train", a.slug or "kneemri-train-r0", cfg, gpu=True, internet=True,
                               datasets=[], kernels=kernels)
     elif a.stage == "submit":
@@ -209,6 +210,9 @@ def main() -> None:
     p.add_argument("--budget-hours", type=float, default=8.0)
     p.add_argument("--base", default=PUBLIC_BASE, help="public notebook to fork (blend stage)")
     p.add_argument("--weight", type=float, default=0.1, help="rank weight of our runs (blend stage)")
+    p.add_argument("--img", type=int, default=None, help="cache stage: slice size (default VOLUME)")
+    p.add_argument("--crop-mm", type=float, default=None, help="cache stage: field of view")
+    p.add_argument("--cache", default="kneemri-cache", help="train stage: cache kernel to train on")
     p.add_argument("--dry-run", action="store_true")
     w = sub.add_parser("wait")
     w.add_argument("slug")

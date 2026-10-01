@@ -38,4 +38,7 @@ for g in range(n_gpu):
     print(f"==== gpu{g} log tail ====\n" + "".join(open(f"{work}/train_gpu{g}.log").readlines()[-40:]), flush=True)
 if any(codes):
     raise SystemExit(f"training failed: {codes}")
+if (CACHE / "volume.json").exists():  # tells the submit stage which volume recipe this run needs
+    import shutil
+    shutil.copy(CACHE / "volume.json", work / "run" / "volume.json")
 print(f"done in {(time.time() - T0) / 3600:.2f} h", flush=True)

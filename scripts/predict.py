@@ -30,7 +30,8 @@ from kneemri.volume import VolumeConfig, count_slices  # noqa: E402
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True)
-    ap.add_argument("--group", action="append", required=True, help="glob of checkpoints of one run")
+    ap.add_argument("--group", action="append", required=True,
+                    help="glob of checkpoints of one run; optional suffix @IMG:CROP_MM overrides --img/--crop-mm")
     ap.add_argument("--img", type=int, default=384)
     ap.add_argument("--crop-mm", type=float, default=140.0)
     ap.add_argument("--recenter", action="store_true")
@@ -53,6 +54,11 @@ def main() -> None:
 
     frames = []
     for gi, pattern in enumerate(a.group):
+        g_cfg = vol_cfg
+        if "@" in pattern:  # this run was trained on a cache with a different volume recipe
+            pattern, spec = pattern.rsplit("@", 1)
+            img, crop = spec.split(":")
+            g_cfg = VolumeConfig(img=int(img), crop_mm=float(crop), recenter=a.recenter)
         ckpts = sorted(glob.glob(pattern))
         if not ckpts:
             print(f"[predict] no checkpoints for {pattern}; skipped", flush=True)
@@ -60,7 +66,7 @@ def main() -> None:
         left = a.budget_hours * 3600 - (time.time() - t0)
         budget = left / (len(a.group) - gi)
         print(f"[predict] group {gi}: {len(ckpts)} ckpts, budget {budget / 60:.0f} min", flush=True)
-        frames.append(predict_dicom(ids, series, data / "test_series", ckpts, vol_cfg, a.img_size,
+        frames.append(predict_dicom(ids, series, data / "test_series", ckpts, g_cfg, a.img_size,
                                     num_workers=a.workers, time_budget_s=budget))
     if a.covered_out:
         # predict_dicom leaves skipped studies (time budget, decode failure) at exactly 0.5

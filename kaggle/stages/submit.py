@@ -9,7 +9,12 @@ if wheels:
        check=False)
 groups = sorted({str(p.parent) for p in find_files("fold*.pt")})
 print("checkpoint groups:", groups, flush=True)
-args = " ".join(f"--group '{g}/fold*.pt'" for g in groups)
+def _spec(g):
+    v = Path(g) / "volume.json"  # runs trained on a non-default cache record its recipe
+    return "@{img}:{crop_mm}".format(**json.loads(v.read_text())) if v.exists() else ""
+
+
+args = " ".join(f"--group '{g}/fold*.pt{_spec(g)}'" for g in groups)
 sh(f"python {CODE}/scripts/predict.py --data {DATA} {args} --img {CONFIG['img']} --crop-mm {CONFIG['crop_mm']} "
    + (" --recenter" if CONFIG.get("recenter") else "")
    + f" --budget-hours {CONFIG.get('budget_hours', 8.0)} --workers {os.cpu_count() or 4} --out {WORK}/submission.csv",
