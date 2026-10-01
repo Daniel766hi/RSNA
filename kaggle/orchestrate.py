@@ -150,6 +150,14 @@ def push(user: str, a) -> None:
         cfg = {**VOLUME, "budget_hours": a.budget_hours, "stack": a.stack}
         folder = build_kernel(user, "submit", a.slug or "kneemri-submit", cfg, gpu=True, internet=False,
                               datasets=[], kernels=["kneemri-cache", *a.train] + (["kneemri-labels"] if a.stack else []))
+    elif a.stage == "head":
+        if not a.run:
+            raise SystemExit("push head needs --run <stage-1 train kernel>")
+        cfg = {"run": a.run, "caches": a.cache if a.cache != ["kneemri-cache"] else None,
+               "refine_from": a.refine_from, "views": a.views, "epochs": a.head_epochs, "seeds": a.seeds}
+        kernels = [*a.cache, "kneemri-labels", a.run] + ([a.refine_from] if a.refine_from and a.refine_from != a.run else [])
+        folder = build_kernel(user, "head", a.slug or f"{a.run}-head", cfg, gpu=True, internet=True,
+                              datasets=[], kernels=kernels)
     elif a.stage == "blend":
         folder = build_blend(user, a.slug or "kneemri-blend", a.base, a.train, a.weight)
     else:
@@ -200,7 +208,7 @@ def main() -> None:
     u.add_argument("-m", "--message", default="update")
     sub.add_parser("search-labels")
     p = sub.add_parser("push")
-    p.add_argument("stage", choices=["cache", "labels", "train", "submit", "blend"])
+    p.add_argument("stage", choices=["cache", "labels", "train", "submit", "blend", "head"])
     p.add_argument("--slug")
     p.add_argument("--datasets", nargs="*", default=[])
     p.add_argument("--models", nargs="*", default=[])
@@ -218,6 +226,10 @@ def main() -> None:
     p.add_argument("--cache", nargs="+", default=["kneemri-cache"],
                    help="train stage: cache kernel(s) to train on (several = shards of one cache)")
     p.add_argument("--shard", default=None, help="cache stage: i/n, cache every n-th study from i")
+    p.add_argument("--run", default=None, help="head stage: stage-1 train kernel whose backbones to reuse")
+    p.add_argument("--views", type=int, default=3, help="head stage: feature views per study (1 clean + augmented)")
+    p.add_argument("--head-epochs", type=int, default=30)
+    p.add_argument("--seeds", type=int, default=2, help="head stage: heads per fold")
     p.add_argument("--dry-run", action="store_true")
     w = sub.add_parser("wait")
     w.add_argument("slug")

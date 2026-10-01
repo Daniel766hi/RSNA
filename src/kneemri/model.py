@@ -95,7 +95,18 @@ class KneeMIL(nn.Module):
         enc = self.encode_windows(x.reshape(b * w, *x.shape[2:])[valid])
         feats = feats.reshape(b * w, -1)
         feats[valid] = enc.to(feats.dtype)
-        h = self.proj(feats.reshape(b, w, -1).float())
+        return self.forward_features(feats.reshape(b, w, -1), slot, pos, mask)
+
+    def forward_features(self, feats: torch.Tensor, slot: torch.Tensor, pos: torch.Tensor,
+                         mask: torch.Tensor) -> torch.Tensor:
+        """Everything after the backbone: window features [B,W,F] -> logits [B,12].
+
+        Split out so the head can be retrained on cached backbone features (scripts/train_head.py).
+        """
+        b = mask.shape[0]
+        mask = mask.clone()
+        mask[~mask.any(1), 0] = True
+        h = self.proj(feats.float())
         h = h + self.slot_emb(slot)
         if self.cfg.use_position:
             onehot = torch.nn.functional.one_hot(slot, self.cfg.n_slots).float()

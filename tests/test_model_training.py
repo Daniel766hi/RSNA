@@ -114,3 +114,48 @@ def test_end_to_end_train_and_predict(tmp_path):
                          num_workers=0)
     assert pred.shape == (4, 13) and ((pred[TARGETS] >= 0) & (pred[TARGETS] <= 1)).all().all()
     assert (pred.iloc[3][TARGETS] == 0.5).all()                 # undecodable study -> 0.5, no crash
+
+
+def test_stage2_head_on_cached_features(tmp_path):
+    """Stage 1 -> stage 2 (frozen backbone, full-context head) -> regular checkpoints -> inference."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    vol = VolumeConfig(img=32, crop_mm=60)
+    series, train_rows = [], []
+    for i in range(8):
+        sid = f"9.{i}"
+        s = make_study(tmp_path / "dcm", sid, laterality="L" if i % 2 else "R", seed=i)
+        series.append(s)
+        arrays, meta = build_study(tmp_path / "dcm" / sid, s, vol)
+        save_study(tmp_path / ("cacheA" if i % 2 else "cacheB") / f"{sid}.npz", arrays, meta)  # two shards
+        train_rows.append({ID_COL: sid, "Report": f"report {i}", **{t: (float(i % 2) if i < 4 else np.nan) for t in TARGETS}})
+    (tmp_path / "data").mkdir()
+    pd.DataFrame(train_rows).to_csv(tmp_path / "data" / "train.csv", index=False)
+    labels = pd.DataFrame(np.tile([[0.2], [0.8]], (4, 12)), columns=TARGETS)
+    labels.insert(0, ID_COL, [r[ID_COL] for r in train_rows])
+    labels.to_csv(tmp_path / "labels.csv", index=False)
+    cache = f"{tmp_path / 'cacheA'},{tmp_path / 'cacheB'}"
+    cfg = TrainConfig(epochs=1, batch_size=2, n_folds=2, num_workers=0, amp=False, out_dir=str(tmp_path / "run"),
+                      max_windows=6, model=ModelConfig(**TINY))
+    run_cv(pd.DataFrame(train_rows), cache, labels.set_index(ID_COL), None, cfg)
+
+    root = Path(__file__).resolve().parents[1]
+    subprocess.run([sys.executable, str(root / "scripts" / "train_head.py"), "--data", str(tmp_path / "data"),
+                    "--cache", cache, "--labels", str(tmp_path / "labels.csv"), "--run", str(tmp_path / "run"),
+                    "--out", str(tmp_path / "head"), "--views", "2", "--epochs", "2", "--batch-size", "2",
+                    "--seeds", "2", "--workers", "0"], check=True)
+    head = tmp_path / "head"
+    assert sorted(p.name for p in head.glob("fold*.pt")) == ["fold0.pt", "fold0s1.pt", "fold1.pt", "fold1s1.pt"]
+    oof = pd.concat([pd.read_csv(p) for p in head.glob("oof_fold*.csv")])
+    assert len(oof) == 8 and oof[TARGETS].notna().all().all()
+    # stage-2 heads differ from stage 1 but keep the stage-1 backbone
+    s1 = torch.load(tmp_path / "run" / "fold0.pt", weights_only=False)["state_dict"]
+    s2 = torch.load(head / "fold0.pt", weights_only=False)["state_dict"]
+    bb = [k for k in s1 if k.startswith("backbone.") and s1[k].dtype.is_floating_point]
+    assert all(torch.equal(s1[k], s2[k]) for k in bb)
+    assert not torch.equal(s1["head_w"], s2["head_w"])
+    pred = predict_dicom(["9.0", "9.1"], pd.concat(series), tmp_path / "dcm", sorted(head.glob("fold*.pt")), vol,
+                         num_workers=0)
+    assert pred.shape == (2, 13) and ((pred[TARGETS] >= 0) & (pred[TARGETS] <= 1)).all().all()
