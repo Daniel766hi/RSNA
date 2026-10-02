@@ -137,13 +137,13 @@ def push(user: str, a) -> None:
         folder = build_kernel(user, "cache", a.slug or "kneemri-cache", vol, gpu=False, internet=True,
                               datasets=[], kernels=[])
     elif a.stage == "labels":
-        cfg = {"n_teachers": a.n_teachers, "llm_model": a.llm_model}
+        cfg = {"n_teachers": a.n_teachers, "llm_model": a.llm_model, "force_llm": a.force_llm}
         folder = build_kernel(user, "labels", a.slug or "kneemri-labels", cfg, gpu=bool(a.llm_model),
                               internet=True, datasets=a.datasets, kernels=[], models=a.models)
     elif a.stage == "train":
         cfg = {**TRAIN, **json.loads(a.config or "{}"), "refine_from": a.refine_from,
-               "caches": a.cache if a.cache != ["kneemri-cache"] else None}
-        kernels = [*a.cache, "kneemri-labels"] + ([a.refine_from] if a.refine_from else [])
+               "caches": a.cache if a.cache != ["kneemri-cache"] else None, "labels_kernel": a.labels_kernel}
+        kernels = [*a.cache, a.labels_kernel] + ([a.refine_from] if a.refine_from else [])
         folder = build_kernel(user, "train", a.slug or "kneemri-train-r0", cfg, gpu=True, internet=True,
                               datasets=[], kernels=kernels)
     elif a.stage == "submit":
@@ -214,6 +214,8 @@ def main() -> None:
     p.add_argument("--models", nargs="*", default=[])
     p.add_argument("--llm-model", default=None)
     p.add_argument("--n-teachers", type=int, default=1)
+    p.add_argument("--labels-kernel", default="kneemri-labels", help="train stage: labels kernel to train on")
+    p.add_argument("--force-llm", action="store_true", help="labels stage: use the LLM table as the targets")
     p.add_argument("--refine-from", default=None)
     p.add_argument("--config", default=None, help='JSON overrides for TRAIN, e.g. \'{"epochs": 8}\'')
     p.add_argument("--train", nargs="*", default=["kneemri-train-r0"])

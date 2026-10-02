@@ -7,7 +7,9 @@ DATA = find_competition_dir()
 CACHE_DIRS = find_npz_caches(CONFIG["caches"]) if CONFIG.get("caches") else [find_npz_cache()]
 CACHE = CACHE_DIRS[0]
 print("cache dirs:", [str(d) for d in CACHE_DIRS], flush=True)
-labels = [p for p in find_files("labels.csv") if str(WORK) not in str(p)][0]
+labels = [p for p in find_files("labels.csv")
+          if str(WORK) not in str(p) and CONFIG.get("labels_kernel", "kneemri-labels") in str(p)][0]
+print("labels:", labels, flush=True)
 work = WORK
 if CONFIG.get("refine_from"):
     oof = [p for p in find_files("oof_fold*.csv") if CONFIG["refine_from"] in str(p)]

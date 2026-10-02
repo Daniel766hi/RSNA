@@ -39,9 +39,10 @@ if CONFIG.get("llm_model"):
     sh(f"pip install -q vllm", check=False)
     llm = list(find_files("config.json", INPUT))
     model_dir = next((str(p.parent) for p in llm if CONFIG["llm_model"] in str(p)), None)
-    if model_dir:
-        sh(f"python {CODE}/scripts/label_reports_llm.py --data {DATA} --model {model_dir} --out {out}/llm_labels.csv")
-        cands["llm"] = normalise_columns(read_table(out / "llm_labels.csv")).set_index(ID_COL)[TARGETS]
+    if not model_dir:
+        raise SystemExit(f"LLM {CONFIG['llm_model']} not attached (add it with --models)")
+    sh(f"python {CODE}/scripts/label_reports_llm.py --data {DATA} --model {model_dir} --out {out}/llm_labels.csv")
+    cands["llm"] = normalise_columns(read_table(out / "llm_labels.csv")).set_index(ID_COL)[TARGETS]
 
 rows = []
 for name, df in cands.items():
@@ -56,6 +57,10 @@ clean = [r["source"] for _, r in report.iterrows() if not r["leak"] and r["gold_
 if not clean:
     raise SystemExit("no clean teacher table found: attach public label datasets or set llm_model")
 chosen = clean[: CONFIG.get("n_teachers", 1)]
+if CONFIG.get("force_llm"):  # a new, decorrelated label source on purpose, whatever its rank
+    if "llm" not in clean:
+        raise SystemExit("force_llm: the LLM table is missing or flagged as leaky")
+    chosen = ["llm"]
 print("using:", chosen, flush=True)
 fused = fuse_teachers([cands[c] for c in chosen])
 fused = fused.reindex(train[ID_COL])
@@ -64,5 +69,7 @@ if "llm" in chosen:  # keep the state-aware weights / explicitness for L1
     llm = read_table(out / "llm_labels.csv").set_index(ID_COL)
     for t in TARGETS:
         fused[f"{t}__e"] = llm[f"{t}__e"].reindex(fused.index)
+        if len(chosen) == 1:  # silent cells train at low weight (llm_labeler.to_soft_labels)
+            fused[f"{t}__w"] = llm[f"{t}__w"].reindex(fused.index)
 fused.reset_index().to_csv(out / "labels.csv", index=False)
 print("gold agreement of the chosen labels:\n", gold_agreement(fused[TARGETS], gold).round(3).to_string())
