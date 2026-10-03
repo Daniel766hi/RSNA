@@ -6,7 +6,9 @@ from pathlib import Path as _KmPath
 
 import pandas as _km_pd
 
-_KM_CFG = __CONFIG__
+import json as _km_json
+
+_KM_CFG = _km_json.loads(r'''__CONFIG__''')
 _KM_T0 = globals().get("T0", None)
 _km_sub_path = _KmPath("/kaggle/working/submission.csv")
 try:
@@ -35,9 +37,13 @@ try:
     _km_elapsed = (_km_time.time() - _KM_T0) / 3600 if isinstance(_KM_T0, (int, float)) else 0.0
     _km_budget = max(0.25, min(_KM_CFG["max_hours"], _KM_CFG["total_hours"] - _km_elapsed))
     print(f"[kneemri] groups={_km_groups} elapsed={_km_elapsed:.2f} h budget={_km_budget:.2f} h", flush=True)
+    def _km_spec(g):  # runs trained on a non-default cache record their volume recipe
+        v = _KmPath(g) / "volume.json"
+        return "@{img}:{crop_mm}".format(**_km_json.loads(v.read_text())) if v.exists() else ""
+
     _km_out = _KmPath("/kaggle/working/kneemri_pred.csv")
     _km_cmd = ([_km_sys.executable, str(_km_code / "scripts" / "predict.py"), "--data", str(_km_data)]
-               + sum((["--group", f"{g}/fold*.pt"] for g in _km_groups), [])
+               + sum((["--group", f"{g}/fold*.pt{_km_spec(g)}"] for g in _km_groups), [])
                + ["--img", str(_KM_CFG["img"]), "--crop-mm", str(_KM_CFG["crop_mm"]),
                   "--budget-hours", f"{_km_budget:.3f}", "--workers", str(_km_os.cpu_count() or 4),
                   "--out", str(_km_out), "--covered-out", str(_km_out.with_name("kneemri_covered.csv"))])
