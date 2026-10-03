@@ -151,20 +151,21 @@ def vllm_generate_fn(model_path: str, max_tokens: int = 700, **llm_kwargs) -> Ca
     return fn
 
 
-def transformers_generate_fn(model_path: str, max_new_tokens: int = 700) -> Callable[[list[list[dict]]], list[str]]:
-    """Slower fallback with plain transformers (one prompt at a time)."""
+def transformers_generate_fn(model_path: str, max_new_tokens: int = 500) -> Callable[[list[list[dict]]], list[str]]:
+    """Fallback with plain transformers: batched greedy generation with left padding."""
     import torch  # noqa: PLC0415
     from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: PLC0415
 
-    tok = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.float16, device_map="auto")
+    tok = AutoTokenizer.from_pretrained(model_path, padding_side="left")
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.float16, device_map="auto").eval()
 
+    @torch.no_grad()
     def fn(batch: Iterable[list[dict]]) -> list[str]:
-        res = []
-        for msgs in batch:
-            ids = tok.apply_chat_template(msgs, add_generation_prompt=True, return_tensors="pt").to(model.device)
-            out = model.generate(ids, max_new_tokens=max_new_tokens, do_sample=False)
-            res.append(tok.decode(out[0, ids.shape[1]:], skip_special_tokens=True))
-        return res
+        prompts = [tok.apply_chat_template(m, add_generation_prompt=True, tokenize=False) for m in batch]
+        enc = tok(prompts, return_tensors="pt", padding=True).to(model.device)
+        out = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False, pad_token_id=tok.pad_token_id)
+        return tok.batch_decode(out[:, enc["input_ids"].shape[1]:], skip_special_tokens=True)
 
     return fn

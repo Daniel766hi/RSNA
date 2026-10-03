@@ -28,7 +28,8 @@ def main() -> None:
     ap.add_argument("--data", required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--backend", default="vllm", choices=["vllm", "transformers"])
+    ap.add_argument("--backend", default="auto", choices=["auto", "vllm", "transformers"],
+                    help="auto: vLLM, falling back to batched transformers if vLLM cannot start")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--batch-size", type=int, default=64)
     a = ap.parse_args()
@@ -36,7 +37,16 @@ def main() -> None:
     train = read_table(Path(a.data) / "train.csv")
     if a.limit:
         train = train.head(a.limit)
-    gen = vllm_generate_fn(a.model) if a.backend == "vllm" else transformers_generate_fn(a.model)
+    gen = None
+    if a.backend in ("auto", "vllm"):
+        try:
+            gen = vllm_generate_fn(a.model)
+        except Exception as exc:  # noqa: BLE001 - e.g. no vLLM wheel or kernel for this GPU
+            if a.backend == "vllm":
+                raise
+            print(f"vLLM unavailable ({exc!r}); falling back to transformers", flush=True)
+    if gen is None:
+        gen = transformers_generate_fn(a.model)
     out = label_reports(train, gen, batch_size=a.batch_size)
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(a.out, index=False)

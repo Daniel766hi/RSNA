@@ -137,7 +137,8 @@ def push(user: str, a) -> None:
         folder = build_kernel(user, "cache", a.slug or "kneemri-cache", vol, gpu=False, internet=True,
                               datasets=[], kernels=[])
     elif a.stage == "labels":
-        cfg = {"n_teachers": a.n_teachers, "llm_model": a.llm_model, "force_llm": a.force_llm}
+        cfg = {"n_teachers": a.n_teachers, "llm_model": a.llm_model, "force_llm": a.force_llm,
+               "llm_fallback": a.llm_fallback}
         folder = build_kernel(user, "labels", a.slug or "kneemri-labels", cfg, gpu=bool(a.llm_model),
                               internet=True, datasets=a.datasets, kernels=[], models=a.models)
     elif a.stage == "train":
@@ -212,7 +213,8 @@ def main() -> None:
     p.add_argument("--slug")
     p.add_argument("--datasets", nargs="*", default=[])
     p.add_argument("--models", nargs="*", default=[])
-    p.add_argument("--llm-model", default=None)
+    p.add_argument("--llm-model", default=None, help="labels stage: model variation dir name, e.g. 14b-instruct-awq")
+    p.add_argument("--llm-fallback", default=None, help="labels stage: fp16 model dir name for the transformers fallback")
     p.add_argument("--n-teachers", type=int, default=1)
     p.add_argument("--labels-kernel", default="kneemri-labels", help="train stage: labels kernel to train on")
     p.add_argument("--force-llm", action="store_true", help="labels stage: use the LLM table as the targets")

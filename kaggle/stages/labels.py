@@ -36,12 +36,25 @@ for p in find_files("*.csv"):
     cands[str(p)] = df
 
 if CONFIG.get("llm_model"):
-    sh(f"pip install -q vllm", check=False)
+    sh("pip install -q vllm", check=False)
+    # vLLM pulls a torch built for another CUDA than the image's torchaudio; transformers imports
+    # torchaudio when present and then fails, and labelling needs neither torchaudio nor torchvision
+    sh("pip uninstall -y -q torchaudio", check=False)
     llm = list(find_files("config.json", INPUT))
-    model_dir = next((str(p.parent) for p in llm if CONFIG["llm_model"] in str(p)), None)
+    def _model_dir(name):
+        return next((str(p.parent) for p in llm if f"/{name}/" in str(p)), None)
+
+    model_dir = _model_dir(CONFIG["llm_model"])
     if not model_dir:
         raise SystemExit(f"LLM {CONFIG['llm_model']} not attached (add it with --models)")
-    sh(f"python {CODE}/scripts/label_reports_llm.py --data {DATA} --model {model_dir} --out {out}/llm_labels.csv")
+    rc = sh(f"python {CODE}/scripts/label_reports_llm.py --data {DATA} --model {model_dir} "
+            f"--backend {CONFIG.get('llm_backend', 'auto')} --out {out}/llm_labels.csv", check=False)
+    if rc != 0 and CONFIG.get("llm_fallback") and _model_dir(CONFIG["llm_fallback"]):
+        print(f"primary LLM failed; falling back to {CONFIG['llm_fallback']} with transformers", flush=True)
+        rc = sh(f"python {CODE}/scripts/label_reports_llm.py --data {DATA} --model {_model_dir(CONFIG['llm_fallback'])} "
+                f"--backend transformers --batch-size 32 --out {out}/llm_labels.csv", check=False)
+    if rc != 0:
+        raise SystemExit("LLM labelling failed")
     cands["llm"] = normalise_columns(read_table(out / "llm_labels.csv")).set_index(ID_COL)[TARGETS]
 
 rows = []
