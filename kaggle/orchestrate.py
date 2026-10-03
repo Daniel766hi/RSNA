@@ -192,8 +192,16 @@ def check_submission(user: str, slug: str) -> None:
     kaggleusercontent.com, which a restricted network may block.
     """
     ref = f"{user}/{slug}"
-    files = run(["kaggle", "kernels", "files", ref], capture=True)
-    if not any(line.split()[:1] == ["submission.csv"] for line in files.splitlines()):
+    names, token = set(), None
+    for _ in range(100):  # outputs can span many pages (forked notebooks write whole environments)
+        out = run(["kaggle", "kernels", "files", ref, "--page-size", "200"] + (["--page-token", token] if token else []),
+                  capture=True)
+        names |= {line.split()[0] for line in out.splitlines() if line.split()}
+        m = re.search(r"Next Page Token = (\S+)", out)
+        if "submission.csv" in names or not m:
+            break
+        token = m.group(1)
+    if "submission.csv" not in names:
         raise SystemExit(f"{slug}: latest version has no submission.csv; not submitting")
     log = "".join(e.get("data", "") for e in json.loads(run(["kaggle", "kernels", "logs", ref], capture=True)))
     if "writing the 0.5 sample instead" in log or "[predict] wrote" not in log:
