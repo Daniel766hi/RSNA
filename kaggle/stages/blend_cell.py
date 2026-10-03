@@ -39,7 +39,10 @@ try:
     print(f"[kneemri] groups={_km_groups} elapsed={_km_elapsed:.2f} h budget={_km_budget:.2f} h", flush=True)
     def _km_spec(g):  # runs trained on a non-default cache record their volume recipe
         v = _KmPath(g) / "volume.json"
-        return "@{img}:{crop_mm}".format(**_km_json.loads(v.read_text())) if v.exists() else ""
+        if not v.exists():
+            return ""
+        vol = _km_json.loads(v.read_text())
+        return f"@{vol['img']}:{vol['crop_mm']}" + (":r" if vol.get("recenter") else "")
 
     _km_out = _KmPath("/kaggle/working/kneemri_pred.csv")
     _km_cmd = ([_km_sys.executable, str(_km_code / "scripts" / "predict.py"), "--data", str(_km_data)]

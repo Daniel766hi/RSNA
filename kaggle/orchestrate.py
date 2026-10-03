@@ -133,7 +133,7 @@ def build_blend(user: str, slug: str, base: str, train: list[str], weight: float
 def push(user: str, a) -> None:
     if a.stage == "cache":
         vol = {**VOLUME, **({"img": a.img} if a.img else {}), **({"crop_mm": a.crop_mm} if a.crop_mm else {}),
-               **({"shard": a.shard} if a.shard else {})}
+               **({"shard": a.shard} if a.shard else {}), **({"recenter": True} if a.recenter else {})}
         folder = build_kernel(user, "cache", a.slug or "kneemri-cache", vol, gpu=False, internet=True,
                               datasets=[], kernels=[])
     elif a.stage == "labels":
@@ -144,7 +144,7 @@ def push(user: str, a) -> None:
     elif a.stage == "train":
         cfg = {**TRAIN, **json.loads(a.config or "{}"), "refine_from": a.refine_from,
                "caches": a.cache if a.cache != ["kneemri-cache"] else None, "labels_kernel": a.labels_kernel}
-        kernels = [*a.cache, a.labels_kernel] + ([a.refine_from] if a.refine_from else [])
+        kernels = [*a.cache, a.labels_kernel] + list(a.refine_from or [])
         folder = build_kernel(user, "train", a.slug or "kneemri-train-r0", cfg, gpu=True, internet=True,
                               datasets=[], kernels=kernels)
     elif a.stage == "submit":
@@ -156,7 +156,7 @@ def push(user: str, a) -> None:
             raise SystemExit("push head needs --run <stage-1 train kernel>")
         cfg = {"run": a.run, "caches": a.cache if a.cache != ["kneemri-cache"] else None,
                "refine_from": a.refine_from, "views": a.views, "epochs": a.head_epochs, "seeds": a.seeds}
-        kernels = [*a.cache, "kneemri-labels", a.run] + ([a.refine_from] if a.refine_from and a.refine_from != a.run else [])
+        kernels = [*a.cache, "kneemri-labels", a.run] + [r for r in (a.refine_from or []) if r != a.run]
         folder = build_kernel(user, "head", a.slug or f"{a.run}-head", cfg, gpu=True, internet=True,
                               datasets=[], kernels=kernels)
     elif a.stage == "blend":
@@ -226,7 +226,8 @@ def main() -> None:
     p.add_argument("--n-teachers", type=int, default=1)
     p.add_argument("--labels-kernel", default="kneemri-labels", help="train stage: labels kernel to train on")
     p.add_argument("--force-llm", action="store_true", help="labels stage: use the LLM table as the targets")
-    p.add_argument("--refine-from", default=None)
+    p.add_argument("--refine-from", nargs="+", default=None,
+                   help="train/head stage: run(s) whose OOF refine the labels (several = ensemble teacher)")
     p.add_argument("--config", default=None, help='JSON overrides for TRAIN, e.g. \'{"epochs": 8}\'')
     p.add_argument("--train", nargs="*", default=["kneemri-train-r0"])
     p.add_argument("--budget-hours", type=float, default=8.0)
@@ -235,6 +236,7 @@ def main() -> None:
     p.add_argument("--weight", type=float, default=0.1, help="rank weight of our runs (blend stage)")
     p.add_argument("--img", type=int, default=None, help="cache stage: slice size (default VOLUME)")
     p.add_argument("--crop-mm", type=float, default=None, help="cache stage: field of view")
+    p.add_argument("--recenter", action="store_true", help="cache stage: recentre the crop on the joint")
     p.add_argument("--cache", nargs="+", default=["kneemri-cache"],
                    help="train stage: cache kernel(s) to train on (several = shards of one cache)")
     p.add_argument("--shard", default=None, help="cache stage: i/n, cache every n-th study from i")

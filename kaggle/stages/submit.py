@@ -11,7 +11,10 @@ groups = sorted({str(p.parent) for p in find_files("fold*.pt")})
 print("checkpoint groups:", groups, flush=True)
 def _spec(g):
     v = Path(g) / "volume.json"  # runs trained on a non-default cache record its recipe
-    return "@{img}:{crop_mm}".format(**json.loads(v.read_text())) if v.exists() else ""
+    if not v.exists():
+        return ""
+    vol = json.loads(v.read_text())
+    return f"@{vol['img']}:{vol['crop_mm']}" + (":r" if vol.get("recenter") else "")
 
 
 args = " ".join(f"--group '{g}/fold*.pt{_spec(g)}'" for g in groups)

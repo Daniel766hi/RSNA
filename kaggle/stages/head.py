@@ -7,14 +7,18 @@ DATA = find_competition_dir()
 CACHE_DIRS = find_npz_caches(CONFIG["caches"]) if CONFIG.get("caches") else [find_npz_cache()]
 print("cache dirs:", [str(d) for d in CACHE_DIRS], flush=True)
 run_dir = next(p.parent for p in find_files("fold0.pt") if CONFIG["run"] in str(p))
-labels = [p for p in find_files("labels.csv") if "kneemri-labels" in str(p)][0]
+labels = [p for p in find_files("labels.csv") if "/kneemri-labels/" in str(p)][0]
 work = WORK
 if CONFIG.get("refine_from"):
-    oof = [p for p in find_files("oof_fold*.csv") if CONFIG["refine_from"] in str(p)]
-    if not oof:
-        raise SystemExit(f"no OOF files from {CONFIG['refine_from']}")
+    runs = CONFIG["refine_from"] if isinstance(CONFIG["refine_from"], list) else [CONFIG["refine_from"]]
+    oof_args = []
+    for r in runs:  # several runs: refine_labels.py rank-averages their OOF (ensemble teacher)
+        oof = [p for p in find_files("oof_fold*.csv") if f"/{r}/" in str(p) or str(p).split("/run/")[0].endswith(r)]
+        if not oof:
+            raise SystemExit(f"no OOF files from {r}")
+        oof_args.append(f"--oof '{oof[0].parent}/oof_fold*.csv'")
     sh(f"python {CODE}/scripts/refine_labels.py --data {DATA} --labels {labels} "
-       f"--oof '{oof[0].parent}/oof_fold*.csv' --out {work}/labels_refined.csv")
+       f"{' '.join(oof_args)} --out {work}/labels_refined.csv")
     labels = work / "labels_refined.csv"
 
 import torch  # noqa: E402

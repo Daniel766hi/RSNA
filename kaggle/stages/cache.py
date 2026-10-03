@@ -12,4 +12,5 @@ sh(f"python {CODE}/scripts/cache_volumes.py --data {DATA} --split train --out {W
    + (f" --shard {CONFIG['shard']}" if CONFIG.get("shard") else ""))
 n = len(list((WORK / "cache").glob("*.npz")))
 print(f"cached {n} studies in {(time.time() - T0) / 60:.1f} min", flush=True)
-json.dump({"img": CONFIG["img"], "crop_mm": CONFIG["crop_mm"]}, open(WORK / "cache" / "volume.json", "w"))
+json.dump({"img": CONFIG["img"], "crop_mm": CONFIG["crop_mm"], "recenter": bool(CONFIG.get("recenter"))},
+          open(WORK / "cache" / "volume.json", "w"))
