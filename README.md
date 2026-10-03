@@ -101,7 +101,7 @@ The pipeline now runs on the competition data on Kaggle (`kaggle/orchestrate.py`
 | LLM labels | Qwen2.5-14B-Instruct-AWQ (vLLM, 2xT4), present/absent/uncertain/not-mentioned; gold agreement 0.832 (Effusion 0.70, Synovitis 0.75), not leaky | — | — |
 | r4 | ConvNeXt-T 320 px on LLM labels, silent cells refined with r1 OOF | 0.844 / 0.841: **rejected** (−0.02 vs r1 on both halves; the LLM teacher, 0.832 gold agreement, is too weak) | — |
 | r5 | ConvNeXt-S, 352 px, 24 windows, 4 folds, labels refined with r3 OOF | 0.852 / 0.880 (r2: 0.857 / 0.886); kept as a member, but no gain for 11.3 h of GPU | — |
-| r6 | ConvNeXt-T, 352 px, labels refined with the r1+r2+r3 OOF ensemble | running | — |
+| r6 | ConvNeXt-T, 352 px, labels refined with the r1+r2+r3 OOF ensemble | 0.865 / 0.860 (r3: 0.869 / 0.864); kept as a member, no gold gain from the ensemble teacher | — |
 | r1 + stage 2 | r1 backbones frozen, MIL head retrained on all windows (`train_head.py`), same labels as r1 | 0.885 / 0.841 (weak 0.880 vs 0.881): **rejected**, gold flat and weak slightly worse; 4.1 h, mostly CPU-bound feature extraction | — |
 
 Gold-58 has only 35 and 23 studies per half, so per-target values are noisy.
