@@ -183,7 +183,8 @@ against the quota. So train elsewhere and keep Kaggle for submitting.
    * trains fold by fold into Google Drive. It is resumable, so after a disconnect re-run all
      cells;
    * uploads the run as a private dataset `danielaijdkx/kneemri-<run>`.
-3. Submit it alongside the Kaggle-trained runs:
+3. Submit it alongside the Kaggle-trained runs, either with `colab/submit.ipynb` (set
+   `TRAIN_DATASETS`, then Run all; no Colab GPU needed) or from a shell:
 
    ```bash
    python kaggle/orchestrate.py push submit --train kneemri-train-r0 ... --train-datasets danielaijdkx/kneemri-r7
