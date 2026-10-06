@@ -150,7 +150,8 @@ def push(user: str, a) -> None:
     elif a.stage == "submit":
         cfg = {**VOLUME, "budget_hours": a.budget_hours, "stack": a.stack}
         folder = build_kernel(user, "submit", a.slug or "kneemri-submit", cfg, gpu=True, internet=False,
-                              datasets=[], kernels=["kneemri-cache", *a.train] + (["kneemri-labels"] if a.stack else []))
+                              datasets=list(a.train_datasets),  # runs trained outside Kaggle (colab/)
+                              kernels=["kneemri-cache", *a.train] + (["kneemri-labels"] if a.stack else []))
     elif a.stage == "head":
         if not a.run:
             raise SystemExit("push head needs --run <stage-1 train kernel>")
@@ -231,6 +232,8 @@ def main() -> None:
     p.add_argument("--config", default=None, help='JSON overrides for TRAIN, e.g. \'{"epochs": 8}\'')
     p.add_argument("--train", nargs="*", default=["kneemri-train-r0"])
     p.add_argument("--budget-hours", type=float, default=8.0)
+    p.add_argument("--train-datasets", nargs="*", default=[],
+                   help="submit stage: datasets holding runs trained outside Kaggle (fold*.pt [+ volume.json])")
     p.add_argument("--stack", action="store_true", help="submit stage: try the LightGBM stacker (rule-gated)")
     p.add_argument("--base", default=PUBLIC_BASE, help="public notebook to fork (blend stage)")
     p.add_argument("--weight", type=float, default=0.1, help="rank weight of our runs (blend stage)")

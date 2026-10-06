@@ -167,3 +167,31 @@ Pick two submissions:
 The public LB covers only part of the ~1,300 test studies, and prevalence differs between the
 public and private sets. Hedging against shake-up is worth more than the last +0.001 on the
 public LB.
+
+## Training outside Kaggle (Colab or a local NVIDIA GPU)
+
+Kaggle's weekly GPU quota (30 h) is the bottleneck for training. Submissions are cheap:
+building the kernel version costs ~15 min, and Kaggle's re-run on the hidden test does not count
+against the quota. So train elsewhere and keep Kaggle for submitting.
+
+1. Open `colab/train_external.ipynb` in Colab (T4 or better). Add `KAGGLE_API_TOKEN` and
+   `KAGGLE_USERNAME` as Colab secrets, never in a cell.
+2. Run all cells. The notebook then does the following:
+   * downloads `train.csv`, the cache shards, the teacher labels and the OOF of the refining runs;
+   * refines the labels;
+   * times one probe epoch;
+   * trains fold by fold into Google Drive. It is resumable, so after a disconnect re-run all
+     cells;
+   * uploads the run as a private dataset `danielaijdkx/kneemri-<run>`.
+3. Submit it alongside the Kaggle-trained runs:
+
+   ```bash
+   python kaggle/orchestrate.py push submit --train kneemri-train-r0 ... --train-datasets danielaijdkx/kneemri-r7
+   python kaggle/orchestrate.py submit kneemri-submit -m "..."
+   ```
+
+   The run's `volume.json` travels with it, so test studies are decoded with the right recipe.
+
+Free Colab sessions can end after a few hours, and Colab has 2 CPUs, so data loading is slower
+than on Kaggle. Expect ~2–3 h per fold for ConvNeXt-T at 320 px. Check the competition rules on
+external compute before relying on it for a prize-eligible submission.
