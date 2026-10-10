@@ -47,7 +47,9 @@ for g in range(n_gpu):
     procs.append(subprocess.Popen(cmd, shell=True))
 codes = [p.wait() for p in procs]
 for g in range(n_gpu):
-    print(f"==== gpu{g} log tail ====\n" + "".join(open(f"{work}/train_gpu{g}.log").readlines()[-40:]), flush=True)
+    log = Path(f"{work}/train_gpu{g}.log")
+    if log.exists():  # a probe uses only the first GPU
+        print(f"==== gpu{g} log tail ====\n" + "".join(log.read_text().splitlines(True)[-40:]), flush=True)
 if any(codes):
     raise SystemExit(f"training failed: {codes}")
 if (CACHE / "volume.json").exists():  # tells the submit stage which volume recipe this run needs
