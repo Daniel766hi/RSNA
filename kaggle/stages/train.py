@@ -33,10 +33,13 @@ common = (f"python {CODE}/scripts/train_cv.py --data {DATA} --cache {CACHE_ARG} 
           f"--n-folds {n_folds} --workers {max(1, (os.cpu_count() or 4) // n_gpu)} --max-windows {CONFIG['max_windows']}"
           + (" --grad-ckpt" if CONFIG.get("grad_ckpt") else "")
           + ("" if CONFIG.get("pretrained", True) else " --no-pretrained")
-          + (f" --img-size {CONFIG['img_size']}" if CONFIG.get("img_size") else ""))
+          + (f" --img-size {CONFIG['img_size']}" if CONFIG.get("img_size") else "")
+          + (f" --limit {CONFIG['limit']}" if CONFIG.get("limit") else ""))  # timing probes
 procs = []
 for g in range(n_gpu):
-    folds = [k for k in range(n_folds) if k % n_gpu == g]
+    folds = [k for k in CONFIG.get("folds", range(n_folds)) if k % n_gpu == g or CONFIG.get("folds")]
+    if CONFIG.get("folds"):  # a probe runs its few folds on the first GPU only
+        folds = folds if g == 0 else []
     if not folds:
         continue
     cmd = f"PYTORCH_ALLOC_CONF=expandable_segments:True CUDA_VISIBLE_DEVICES={g} {common} --folds {' '.join(map(str, folds))} > {work}/train_gpu{g}.log 2>&1"
