@@ -106,6 +106,7 @@ The pipeline now runs on the competition data on Kaggle (`kaggle/orchestrate.py`
 | r0+r1+r2+r3+r5+r6 | rank mean, own pipeline only | — | 0.894 (no change: r5/r6 add nothing over r0-r3) |
 | r7 | ConvNeXt-T, recentred 120 mm crop, labels refined with the r1+r2+r3+r5+r6 OOF ensemble | 0.866 / 0.856; kept as a member; Lateral OA / PF OA not improved | — |
 | r8 | EfficientNetV2-S (first non-ConvNeXt member), 320 px, ensemble-refined labels | running | — |
+| r9 | EfficientNetV2-S, 352 px, labels refined with the r1+r2+r3+r5+r6+r7 OOF ensemble | 0.853 / 0.855 (−0.016 / −0.009 vs r3, mean −0.012); dropped by the rule | — |
 | r1 + stage 2 | r1 backbones frozen, MIL head retrained on all windows (`train_head.py`), same labels as r1 | 0.885 / 0.841 (weak 0.880 vs 0.881): **rejected**, gold flat and weak slightly worse; 4.1 h, mostly CPU-bound feature extraction | — |
 
 Gold-58 has only 35 and 23 studies per half, so per-target values are noisy.
