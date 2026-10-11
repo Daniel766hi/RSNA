@@ -105,7 +105,7 @@ The pipeline now runs on the competition data on Kaggle (`kaggle/orchestrate.py`
 | r6 | ConvNeXt-T, 352 px, labels refined with the r1+r2+r3 OOF ensemble | 0.865 / 0.860 (r3: 0.869 / 0.864); kept as a member, no gold gain from the ensemble teacher | — |
 | r0+r1+r2+r3+r5+r6 | rank mean, own pipeline only | — | 0.894 (no change: r5/r6 add nothing over r0-r3) |
 | r7 | ConvNeXt-T, recentred 120 mm crop, labels refined with the r1+r2+r3+r5+r6 OOF ensemble | 0.866 / 0.856; kept as a member; Lateral OA / PF OA not improved | — |
-| r8 | EfficientNetV2-S (first non-ConvNeXt member), 320 px, ensemble-refined labels | running | — |
+| r8 | EfficientNetV2-S (first non-ConvNeXt member), 320 px, ensemble-refined labels | 0.846 / 0.838 (−0.023 / −0.026 vs r3); dropped by the rule | — |
 | r9 | EfficientNetV2-S, 352 px, labels refined with the r1+r2+r3+r5+r6+r7 OOF ensemble | 0.853 / 0.855 (−0.016 / −0.009 vs r3, mean −0.012); dropped by the rule | — |
 | r1 + stage 2 | r1 backbones frozen, MIL head retrained on all windows (`train_head.py`), same labels as r1 | 0.885 / 0.841 (weak 0.880 vs 0.881): **rejected**, gold flat and weak slightly worse; 4.1 h, mostly CPU-bound feature extraction | — |
 
