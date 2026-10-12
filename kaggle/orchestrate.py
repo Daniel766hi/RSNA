@@ -97,6 +97,10 @@ def build_kernel(user: str, stage: str, slug: str, config: dict, *, gpu: bool, i
     return out
 
 
+READER_SRC = "goodpjw2008/rsna-knee-2-5d-convnext-reader"  # public 2.5-D ConvNeXt reader (Apache-2.0)
+READER_LABEL_SOURCES = ["stevenleehans/rsna-knee-llm-report-labels", "pilkwang/rsna-knee-llm-labels",
+                        "lixin73/rsna-knee-llm-report-labels-sol56",
+                        "laymond/rsna-knee-abnormality-qwen3-8b-weak-labels"]  # the reader's v0 label recipe
 PUBLIC_BASE = "yamadan96/rsna-knee-d4-public0946"  # public 0.943 pipeline (lever L6 partner)
 
 
@@ -160,6 +164,20 @@ def push(user: str, a) -> None:
         kernels = [*a.cache, "kneemri-labels", a.run] + [r for r in (a.refine_from or []) if r != a.run]
         folder = build_kernel(user, "head", a.slug or f"{a.run}-head", cfg, gpu=True, internet=True,
                               datasets=[], kernels=kernels)
+    elif a.stage == "reader_cache":
+        cfg = {"shard": a.shard, "limit": a.limit}
+        folder = build_kernel(user, "reader_cache", a.slug or "kneemri-rcache", cfg, gpu=False, internet=True,
+                              datasets=[READER_SRC], kernels=[])
+    elif a.stage == "reader_labels":
+        cfg = {"refine_from": a.refine_from or ["kneemri-train-r1", "kneemri-train-r2", "kneemri-train-r3",
+                                                "kneemri-train-r5", "kneemri-train-r6", "kneemri-train-r7"]}
+        folder = build_kernel(user, "reader_labels", a.slug or "kneemri-rlabels", cfg, gpu=False, internet=False,
+                              datasets=[READER_SRC, *READER_LABEL_SOURCES], kernels=cfg["refine_from"])
+    elif a.stage == "reader_train":
+        cfg = {"labels": a.reader_labels, "labels_kernel": "kneemri-rlabels", "caches": a.cache, "folds": a.folds,
+               "eval": a.eval_published, "limit": a.limit, "epochs": a.reader_epochs, "micro": a.micro, "seed": a.seed}
+        folder = build_kernel(user, "reader_train", a.slug or f"kneemri-reader-{a.reader_labels}", cfg, gpu=True,
+                              internet=True, datasets=[READER_SRC], kernels=[*a.cache, "kneemri-rlabels"])
     elif a.stage == "blend":
         folder = build_blend(user, a.slug or "kneemri-blend", a.base, a.train, a.weight)
     else:
@@ -218,7 +236,8 @@ def main() -> None:
     u.add_argument("-m", "--message", default="update")
     sub.add_parser("search-labels")
     p = sub.add_parser("push")
-    p.add_argument("stage", choices=["cache", "labels", "train", "submit", "blend", "head"])
+    p.add_argument("stage", choices=["cache", "labels", "train", "submit", "blend", "head",
+                                           "reader_cache", "reader_labels", "reader_train"])
     p.add_argument("--slug")
     p.add_argument("--datasets", nargs="*", default=[])
     p.add_argument("--models", nargs="*", default=[])
@@ -247,6 +266,13 @@ def main() -> None:
     p.add_argument("--views", type=int, default=3, help="head stage: feature views per study (1 clean + augmented)")
     p.add_argument("--head-epochs", type=int, default=30)
     p.add_argument("--seeds", type=int, default=2, help="head stage: heads per fold")
+    p.add_argument("--limit", type=int, default=None, help="reader stages: probe on this many series / studies")
+    p.add_argument("--reader-labels", default="l1", help="reader_train: labels_<name>.csv (v0 = the author's own)")
+    p.add_argument("--folds", type=int, nargs="+", default=[0, 1], help="reader_train: folds (one per GPU)")
+    p.add_argument("--eval-published", action="store_true", help="reader_train: score the published cnxt_v0 folds")
+    p.add_argument("--reader-epochs", type=int, default=14)
+    p.add_argument("--micro", type=int, default=2, help="reader_train: studies per forward pass")
+    p.add_argument("--seed", type=int, default=0)
     p.add_argument("--dry-run", action="store_true")
     w = sub.add_parser("wait")
     w.add_argument("slug")
