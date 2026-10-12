@@ -175,7 +175,8 @@ def push(user: str, a) -> None:
                               datasets=[READER_SRC, *READER_LABEL_SOURCES], kernels=cfg["refine_from"])
     elif a.stage == "reader_train":
         cfg = {"labels": a.reader_labels, "labels_kernel": "kneemri-rlabels", "caches": a.cache, "folds": a.folds,
-               "eval": a.eval_published, "limit": a.limit, "epochs": a.reader_epochs, "micro": a.micro, "seed": a.seed}
+               "eval": a.eval_published, "limit": a.limit, "epochs": a.reader_epochs, "micro": a.micro, "seed": a.seed,
+               "micro_per_gpu": a.micro_per_gpu}
         folder = build_kernel(user, "reader_train", a.slug or f"kneemri-reader-{a.reader_labels}", cfg, gpu=True,
                               internet=True, datasets=[READER_SRC], kernels=[*a.cache, "kneemri-rlabels"])
     elif a.stage == "blend":
@@ -273,6 +274,7 @@ def main() -> None:
     p.add_argument("--reader-epochs", type=int, default=14)
     p.add_argument("--micro", type=int, default=2, help="reader_train: studies per forward pass")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--micro-per-gpu", type=int, nargs="+", default=None, help="reader_train probes: micro per GPU")
     p.add_argument("--dry-run", action="store_true")
     w = sub.add_parser("wait")
     w.add_argument("slug")

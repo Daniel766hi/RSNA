@@ -67,7 +67,7 @@ def main() -> None:
     ap.add_argument("--fold", type=int, default=0)
     ap.add_argument("--eval-ckpt", default=None, help="score this checkpoint instead of training")
     # the reader's train.py defaults
-    ap.add_argument("--backbone", default="convnext_tiny")
+    ap.add_argument("--backbone", default="convnext_tiny.fb_in22k_ft_in1k")  # as in the published args
     ap.add_argument("--res", type=int, default=256)
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--k_eval", type=int, default=12)
@@ -176,12 +176,14 @@ def main() -> None:
     step = 0
     for ep in range(a.epochs):
         model.train()
-        t0, tot, n = time.time(), 0.0, 0
+        t0, tot, n, t_data = time.time(), 0.0, 0, 0.0
         it = iter(train_dl)
         for s in range(per_epoch):
             opt.zero_grad(set_to_none=True)
             for _ in range(accum):
+                td = time.time()
                 x, mask, pos, y = next(it)
+                t_data += time.time() - td
                 x, mask, pos, y = x.to(DEV, non_blocking=True), mask.to(DEV), pos.to(DEV), y.to(DEV)
                 with torch.autocast(**AMP):
                     logit = model(x, mask, pos, res=a.res, train=True)
@@ -201,9 +203,9 @@ def main() -> None:
                 for be, bm in zip(ema.buffers(), model.buffers()):
                     be.copy_(bm)
             n += 1
-            if n % 50 == 0:
+            if n % (10 if a.limit else 50) == 0:
                 print(f"[reader f{a.fold}]   ep {ep} step {n}/{per_epoch} loss {tot / n:.4f} "
-                      f"{(time.time() - t0) / n:.2f}s/step", flush=True)
+                      f"{(time.time() - t0) / n:.2f}s/step (data wait {t_data / n:.2f}s)", flush=True)
         g = predict(ema, eval_dl["gold"], a.res)
         say(f"ep {ep:2d} loss {tot / max(n, 1):.4f} time {time.time() - t0:.0f}s | gold {macro_auc(gold_y, g)[0]:.4f}")
     torch.save({"model": ema.state_dict(), "args": {**vars(a), "t4_port": True}}, out / f"fold{a.fold}.pt")

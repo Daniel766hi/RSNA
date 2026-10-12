@@ -28,7 +28,8 @@ for g in range(n_gpu):
     cmds = []
     for k in mine:
         ck = f" --eval-ckpt {SRC}/cnxt_v0_fold{k}.pt" if CONFIG.get("eval") else ""
-        cmds.append(f"{base} --fold {k}{ck} > {WORK}/log_g{g}_f{k}.txt 2>&1")
+        micro = f" --micro {CONFIG['micro_per_gpu'][g]}" if CONFIG.get("micro_per_gpu") else ""  # probes
+        cmds.append(f"{base} --fold {k}{ck}{micro} > {WORK}/log_g{g}_f{k}.txt 2>&1")
     cmd = f"CUDA_VISIBLE_DEVICES={g} bash -c '{' && '.join(cmds)}'"
     print("$", cmd, flush=True)
     procs.append((g, subprocess.Popen(cmd, shell=True)))
