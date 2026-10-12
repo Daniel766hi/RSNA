@@ -35,7 +35,9 @@ try:
     if not _km_groups:
         raise RuntimeError("no kneemri checkpoints attached")
     _km_elapsed = (_km_time.time() - _KM_T0) / 3600 if isinstance(_KM_T0, (int, float)) else 0.0
-    _km_budget = max(0.25, min(_KM_CFG["max_hours"], _KM_CFG["total_hours"] - _km_elapsed))
+    _km_budget = min(_KM_CFG["max_hours"], _KM_CFG["total_hours"] - _km_elapsed)
+    if _km_budget < 0.25:  # never risk the kernel time limit for our small share
+        raise RuntimeError(f"only {_km_budget:.2f} h left after {_km_elapsed:.2f} h")
     print(f"[kneemri] groups={_km_groups} elapsed={_km_elapsed:.2f} h budget={_km_budget:.2f} h", flush=True)
     def _km_spec(g):  # runs trained on a non-default cache record their volume recipe
         v = _KmPath(g) / "volume.json"
