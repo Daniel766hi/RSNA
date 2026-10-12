@@ -100,6 +100,8 @@ The pipeline now runs on the competition data on Kaggle (`kaggle/orchestrate.py`
 | blend | public 0.943 pipeline (`push blend`) + own r0-r3 at 10% rank weight | — | 0.941 (below the public pipeline alone: our members are too weak to add value yet) |
 | blend 950 | public 0.950 pipeline (goodpjw2008: nartaa CoAtNet + 2.5D ConvNeXt reader) + own r0-r7 at 5% | — | 0.949 (base notebook alone is reported at 0.950) |
 | blend 954 | public 0.954 pipeline (goodpjw2008, 12 Oct version: nartaa CoAtNet + heliosli compact S6 + 2.5D ConvNeXt reader) + own r0-r3, r5-r7 at 3% | — | **0.953** (best so far; base notebook alone is reported at 0.954) |
+| reader v0 (control) | published 2.5-D ConvNeXt reader of the 0.954 notebook (goodpjw2008, Apache-2.0), folds 0-2, scored on our reproduction of its cache and folds | 0.909 / 0.895 / 0.910 (mean 0.905) | — |
+| reader l1 | same reader recipe, ported to T4, trained on v0 labels refined with our KneeMIL OOF (L1); label table gold agreement 0.913 vs 0.896 for v0 | scheduled after the 17 Oct quota reset | — |
 | LLM labels | Qwen2.5-14B-Instruct-AWQ (vLLM, 2xT4), present/absent/uncertain/not-mentioned; gold agreement 0.832 (Effusion 0.70, Synovitis 0.75), not leaky | — | — |
 | r4 | ConvNeXt-T 320 px on LLM labels, silent cells refined with r1 OOF | 0.844 / 0.841: **rejected** (−0.02 vs r1 on both halves; the LLM teacher, 0.832 gold agreement, is too weak) | — |
 | r5 | ConvNeXt-S, 352 px, 24 windows, 4 folds, labels refined with r3 OOF | 0.852 / 0.880 (r2: 0.857 / 0.886); kept as a member, but no gain for 11.3 h of GPU | — |
