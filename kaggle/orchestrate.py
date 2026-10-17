@@ -104,28 +104,54 @@ READER_LABEL_SOURCES = ["stevenleehans/rsna-knee-llm-report-labels", "pilkwang/r
 PUBLIC_BASE = "yamadan96/rsna-knee-d4-public0946"  # public 0.943 pipeline (lever L6 partner)
 
 
-def build_blend(user: str, slug: str, base: str, train: list[str], weight: float) -> Path:
+READER_CK_LINE = '_o_ck = sorted(c for g in OWN_GLOB.split() for c in _o_glob.glob(_o_assets + "/" + g))'
+
+
+def patch_reader_leg(nb: dict, kernels: list[str], mode: str) -> None:
+    """Point the 0.954 notebook's own-reader leg (Part B) at our retrained fold checkpoints:
+    ``replace`` uses ours instead of the published cnxt_v0 folds, ``add`` uses both."""
+    cell = next(c for c in reversed(nb["cells"]) if READER_CK_LINE in "".join(c["source"]))
+    src = "".join(cell["source"])
+    pats = " + ".join(f'_o_glob.glob("/kaggle/input/**/{k}/run/fold[012].pt", recursive=True)' for k in kernels)
+    ours = (f"\n        _o_ours = sorted({pats})  # [kneemri] retrained reader (L1 labels)\n"
+            f"        assert len(_o_ours) == 3, f\"expected 3 retrained folds, found {{_o_ours}}\"\n"
+            f"        _o_ck = {'_o_ours' if mode == 'replace' else '_o_ck + _o_ours'}\n"
+            f"        print(\"own leg: checkpoints\", _o_ck, flush=True)")
+    cell["source"] = src.replace(READER_CK_LINE, READER_CK_LINE + ours, 1)
+
+
+def build_blend(user: str, slug: str, base: str, train: list[str], weight: float,
+                reader: list[str] | None = None, reader_mode: str = "replace") -> Path:
     """Fork a public submission notebook and append a cell that rank-blends our runs into its
-    submission.csv at ``weight``. The public pipeline's own output is kept if our part fails."""
+    submission.csv at ``weight`` (no cell at weight 0). With ``reader``, the notebook's own-reader
+    leg also loads our retrained checkpoints. The public output is kept if our part fails."""
     out = BUILD / slug
     shutil.rmtree(out, ignore_errors=True)
-    pulled = BUILD / "public" / base.replace("/", "__")
-    shutil.rmtree(pulled, ignore_errors=True)
-    run(["kaggle", "kernels", "pull", base, "-p", str(pulled), "-m"])
+    if Path(base).is_dir():  # a saved copy (a public notebook's older version can no longer be pulled)
+        pulled = Path(base)
+    else:
+        pulled = BUILD / "public" / base.replace("/", "__")
+        shutil.rmtree(pulled, ignore_errors=True)
+        run(["kaggle", "kernels", "pull", base, "-p", str(pulled), "-m"])
     src_meta = json.loads((pulled / "kernel-metadata.json").read_text())
     nb = json.loads((pulled / src_meta["code_file"]).read_text())
-    cfg = {**VOLUME, "weight": weight, "max_hours": 2.5, "total_hours": 8.6}
-    cell = (STAGES / "blend_cell.py").read_text().replace("__CONFIG__", json.dumps(cfg))
-    nb["cells"].append({"cell_type": "code", "metadata": {}, "execution_count": None, "outputs": [],
-                        "source": cell})
+    if reader:
+        patch_reader_leg(nb, reader, reader_mode)
+    if weight > 0:
+        cfg = {**VOLUME, "weight": weight, "max_hours": 2.5, "total_hours": 8.6}
+        cell = (STAGES / "blend_cell.py").read_text().replace("__CONFIG__", json.dumps(cfg))
+        nb["cells"].append({"cell_type": "code", "metadata": {}, "execution_count": None, "outputs": [],
+                            "source": cell})
     out.mkdir(parents=True)
     (out / f"{slug}.ipynb").write_text(json.dumps(nb))
     keep = ("dataset_sources", "kernel_sources", "competition_sources", "model_sources", "docker_image",
             "machine_shape", "enable_gpu")
     meta = {k: src_meta[k] for k in keep if k in src_meta}
-    meta["dataset_sources"] = [d for d in meta.get("dataset_sources", []) if d] + [f"{user}/kneemri-code"]
-    meta["kernel_sources"] = meta.get("kernel_sources", []) + [f"{user}/kneemri-cache"] + [
-        f"{user}/{k}" if "/" not in k else k for k in train]
+    meta["dataset_sources"] = [d for d in meta.get("dataset_sources", []) if d]
+    meta["kernel_sources"] = meta.get("kernel_sources", []) + [f"{user}/{k}" for k in reader or []]
+    if weight > 0:
+        meta["dataset_sources"] += [f"{user}/kneemri-code"]
+        meta["kernel_sources"] += [f"{user}/kneemri-cache"] + [f"{user}/{k}" if "/" not in k else k for k in train]
     meta.update({"id": f"{user}/{slug}", "title": slug, "code_file": f"{slug}.ipynb", "language": "python",
                  "kernel_type": "notebook", "is_private": True, "enable_internet": False, "enable_tpu": False})
     if meta.get("docker_image"):
@@ -176,11 +202,15 @@ def push(user: str, a) -> None:
     elif a.stage == "reader_train":
         cfg = {"labels": a.reader_labels, "labels_kernel": "kneemri-rlabels", "caches": a.cache, "folds": a.folds,
                "eval": a.eval_published, "limit": a.limit, "epochs": a.reader_epochs, "micro": a.micro, "seed": a.seed,
-               "micro_per_gpu": a.micro_per_gpu}
+               "micro_per_gpu": a.micro_per_gpu, "fold_labels": a.fold_labels}
         folder = build_kernel(user, "reader_train", a.slug or f"kneemri-reader-{a.reader_labels}", cfg, gpu=True,
                               internet=True, datasets=[READER_SRC], kernels=[*a.cache, "kneemri-rlabels"])
+    elif a.stage == "reader_compare":
+        folder = build_kernel(user, "reader_compare", a.slug or "kneemri-rcompare", {}, gpu=False, internet=False,
+                              datasets=[], kernels=["kneemri-rlabels", "kneemri-reader-v0eval",
+                                                    "kneemri-reader-l1a", "kneemri-reader-l1b"])
     elif a.stage == "blend":
-        folder = build_blend(user, a.slug or "kneemri-blend", a.base, a.train, a.weight)
+        folder = build_blend(user, a.slug or "kneemri-blend", a.base, a.train, a.weight, a.reader, a.reader_mode)
     else:
         raise SystemExit(f"unknown stage {a.stage}")
     if a.dry_run:
@@ -224,6 +254,12 @@ def check_submission(user: str, slug: str) -> None:
     if "submission.csv" not in names:
         raise SystemExit(f"{slug}: latest version has no submission.csv; not submitting")
     log = "".join(e.get("data", "") for e in json.loads(run(["kaggle", "kernels", "logs", ref], capture=True)))
+    if "own leg: checkpoints" in log:  # a blend whose public reader leg loads our retrained folds
+        if "own leg FAILED" in log or "own leg: blended" not in log:
+            raise SystemExit(f"{slug}: the reader leg with our checkpoints did not blend; check the log")
+        print(next(line for line in log.splitlines() if "own leg: blended" in line), flush=True)
+        if "[kneemri]" not in log:
+            return
     if "writing the 0.5 sample instead" in log or "[predict] wrote" not in log:
         raise SystemExit(f"{slug}: submission.csv is the 0.5 fallback or predict.py did not finish; check the log")
     print(next(line for line in log.splitlines() if "[predict] wrote" in line), flush=True)
@@ -238,7 +274,7 @@ def main() -> None:
     sub.add_parser("search-labels")
     p = sub.add_parser("push")
     p.add_argument("stage", choices=["cache", "labels", "train", "submit", "blend", "head",
-                                           "reader_cache", "reader_labels", "reader_train"])
+                                           "reader_cache", "reader_labels", "reader_train", "reader_compare"])
     p.add_argument("--slug")
     p.add_argument("--datasets", nargs="*", default=[])
     p.add_argument("--models", nargs="*", default=[])
@@ -274,6 +310,9 @@ def main() -> None:
     p.add_argument("--reader-epochs", type=int, default=14)
     p.add_argument("--micro", type=int, default=2, help="reader_train: studies per forward pass")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--reader", nargs="*", default=None, help="blend stage: retrained reader kernels for Part B")
+    p.add_argument("--reader-mode", choices=["replace", "add"], default="replace")
+    p.add_argument("--fold-labels", nargs="+", default=None, help="reader_train: label name per --folds entry")
     p.add_argument("--micro-per-gpu", type=int, nargs="+", default=None, help="reader_train probes: micro per GPU")
     p.add_argument("--dry-run", action="store_true")
     w = sub.add_parser("wait")
